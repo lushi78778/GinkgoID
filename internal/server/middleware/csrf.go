@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 
+	"ginkgoid/internal/infra/errx"
 	"ginkgoid/internal/infra/logx"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -99,7 +100,7 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 						logx.String("client_ip", c.ClientIP()),
 						zap.Bool("https", isRequestSecure(c.Request)),
 					)
-					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "csrf_token_generation_failed"})
+					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"code": int(errx.CSRFTokenGenFailed), "message": errx.Msg(errx.CSRFTokenGenFailed)})
 					return
 				}
 			}
@@ -122,7 +123,7 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 					logx.String("xf_proto", c.GetHeader("X-Forwarded-Proto")),
 					logx.String("xf_host", c.GetHeader("X-Forwarded-Host")),
 				)
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": 403, "message": "invalid_origin"})
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": int(errx.CSRFOriginInvalid), "message": errx.Msg(errx.CSRFOriginInvalid)})
 				return
 			}
 		}
@@ -136,7 +137,7 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 				logx.String("client_ip", c.ClientIP()),
 				logx.String("cookie_name", cfg.CookieName),
 			)
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": 403, "message": "missing_csrf_cookie"})
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": int(errx.CSRFTokenMissing), "message": errx.Msg(errx.CSRFTokenMissing)})
 			return
 		}
 		// 从请求中提取 Token（Header 优先，表单兜底）
@@ -150,7 +151,7 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 				logx.String("token_source", source),
 				zap.Bool("has_token", token != ""),
 			)
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": 403, "message": "invalid_csrf_token"})
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": int(errx.CSRFTokenInvalid), "message": errx.Msg(errx.CSRFTokenInvalid)})
 			return
 		}
 		c.Next()
