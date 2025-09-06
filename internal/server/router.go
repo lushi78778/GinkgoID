@@ -784,7 +784,7 @@ func parseSub(sub string) uint64 {
 
 // dbSaveAuthCode 保存授权码记录。
 func dbSaveAuthCode(c *gin.Context, ac *entity.AuthCode) error {
-	return db.G().WithContext(c).Create(ac).Error
+	return db.G().WithContext(c.Request.Context()).Create(ac).Error
 }
 
 // dbGetAuthCode 根据哈希查询授权码记录。

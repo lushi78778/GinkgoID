@@ -33,7 +33,7 @@ func fail(c *gin.Context, code int, msg string) {
 // GET /admin/api/clients
 func ListClients(c *gin.Context) {
 	var list []entity.Client
-	db.G().WithContext(c).Limit(1000).Find(&list)
+	db.G().WithContext(c.Request.Context()).Limit(1000).Find(&list)
 	out := make([]gin.H, 0, len(list))
 	for _, v := range list {
 		out = append(out, gin.H{
@@ -60,7 +60,7 @@ func ListClientsTable(c *gin.Context) {
 	}
 	offset := (page - 1) * limit
 	q := c.Query("q")
-	dbx := db.G().WithContext(c)
+	dbx := db.G().WithContext(c.Request.Context())
 	if q != "" {
 		like := "%" + q + "%"
 		dbx = dbx.Where("client_id LIKE ? OR name LIKE ?", like, like)
@@ -125,7 +125,7 @@ func CreateClient(c *gin.Context) {
 	if req.Status != nil {
 		cli.Status = *req.Status
 	}
-	if err := db.G().WithContext(c).Create(&cli).Error; err != nil {
+	if err := db.G().WithContext(c.Request.Context()).Create(&cli).Error; err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
@@ -168,7 +168,7 @@ func UpdateClient(c *gin.Context) {
 	if req.Status != nil {
 		updates["status"] = *req.Status
 	}
-	if err := db.G().WithContext(c).Model(&entity.Client{}).Where("client_id = ?", id).Updates(updates).Error; err != nil {
+	if err := db.G().WithContext(c.Request.Context()).Model(&entity.Client{}).Where("client_id = ?", id).Updates(updates).Error; err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
@@ -186,7 +186,7 @@ func PatchClientStatus(c *gin.Context) {
 		fail(c, 400, "bad_request")
 		return
 	}
-	if err := db.G().WithContext(c).Model(&entity.Client{}).Where("client_id = ?", id).Update("status", body.Status).Error; err != nil {
+	if err := db.G().WithContext(c.Request.Context()).Model(&entity.Client{}).Where("client_id = ?", id).Update("status", body.Status).Error; err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
@@ -198,7 +198,7 @@ func PatchClientStatus(c *gin.Context) {
 // GET /admin/api/users
 func ListUsers(c *gin.Context) {
 	var list []entity.User
-	db.G().WithContext(c).Limit(1000).Find(&list)
+	db.G().WithContext(c.Request.Context()).Limit(1000).Find(&list)
 	out := make([]gin.H, 0, len(list))
 	for _, v := range list {
 		email := ""
@@ -221,7 +221,7 @@ func ListUsersTable(c *gin.Context) {
 	}
 	offset := (page - 1) * limit
 	q := c.Query("q")
-	dbx := db.G().WithContext(c).Model(&entity.User{})
+	dbx := db.G().WithContext(c.Request.Context()).Model(&entity.User{})
 	if q != "" {
 		like := "%" + q + "%"
 		dbx = dbx.Where("username LIKE ? OR email LIKE ?", like, like)
@@ -269,7 +269,7 @@ func CreateUser(c *gin.Context) {
 	if body.Role != "" {
 		u.Role = body.Role
 	}
-	if err := db.G().WithContext(c).Create(&u).Error; err != nil {
+	if err := db.G().WithContext(c.Request.Context()).Create(&u).Error; err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
@@ -286,7 +286,7 @@ func PatchUserPassword(c *gin.Context) {
 		return
 	}
 	ph, _ := passhash.Hash(body.Password)
-	if err := db.G().WithContext(c).Model(&entity.User{}).Where("id = ?", id).Update("password_hash", ph).Error; err != nil {
+	if err := db.G().WithContext(c.Request.Context()).Model(&entity.User{}).Where("id = ?", id).Update("password_hash", ph).Error; err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
@@ -333,7 +333,7 @@ func PatchUserEmail(c *gin.Context) {
 	if body.EmailVerified != nil {
 		updates["email_verified"] = *body.EmailVerified
 	}
-	if err := db.G().WithContext(c).Model(&entity.User{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+	if err := db.G().WithContext(c.Request.Context()).Model(&entity.User{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
@@ -352,7 +352,7 @@ func PatchUserRole(c *gin.Context) {
 		fail(c, 400, "bad_request")
 		return
 	}
-	if err := db.G().WithContext(c).Model(&entity.User{}).Where("id = ?", id).Update("role", body.Role).Error; err != nil {
+	if err := db.G().WithContext(c.Request.Context()).Model(&entity.User{}).Where("id = ?", id).Update("role", body.Role).Error; err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
@@ -364,7 +364,7 @@ func PatchUserRole(c *gin.Context) {
 // GET /admin/api/consents?user_id=&client_id=
 func ListConsents(c *gin.Context) {
 	var list []entity.Consent
-	q := db.G().WithContext(c)
+	q := db.G().WithContext(c.Request.Context())
 	if uid := c.Query("user_id"); uid != "" {
 		q = q.Where("user_id = ?", uid)
 	}
@@ -389,7 +389,7 @@ func ListConsentsTable(c *gin.Context) {
 		limit = 10
 	}
 	offset := (page - 1) * limit
-	dbx := db.G().WithContext(c).Model(&entity.Consent{})
+	dbx := db.G().WithContext(c.Request.Context()).Model(&entity.Consent{})
 	if uid := c.Query("user_id"); uid != "" {
 		dbx = dbx.Where("user_id = ?", uid)
 	}
@@ -417,7 +417,7 @@ func ListConsentsTable(c *gin.Context) {
 // DELETE /admin/api/consents/:id
 func DeleteConsent(c *gin.Context) {
 	id := c.Param("id")
-	if err := db.G().WithContext(c).Delete(&entity.Consent{}, id).Error; err != nil {
+	if err := db.G().WithContext(c.Request.Context()).Delete(&entity.Consent{}, id).Error; err != nil {
 		fail(c, 500, err.Error())
 		return
 	}
@@ -429,7 +429,7 @@ func DeleteConsent(c *gin.Context) {
 // GET /admin/api/jwks
 func ListJWKS(c *gin.Context) {
 	var list []entity.JWKKey
-	db.G().WithContext(c).Order("status DESC, not_before DESC").Find(&list)
+	db.G().WithContext(c.Request.Context()).Order("status DESC, not_before DESC").Find(&list)
 	out := make([]gin.H, 0, len(list))
 	for _, v := range list {
 		out = append(out, gin.H{"kid": v.KID, "alg": v.Alg, "status": v.Status})
