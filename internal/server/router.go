@@ -427,6 +427,11 @@ func authorize(c *gin.Context) {
 }
 
 func token(c *gin.Context) {
+	// Ensure form is parsed before accessing PostForm
+	if err := c.Request.ParseForm(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
 	// Basic validation
 	tp, perr := vld.ParseTokenForm(c.Request.PostForm)
 	if perr != nil {
