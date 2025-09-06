@@ -57,6 +57,11 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 		cfg.FormFieldNames = []string{"_csrf", "csrf", "csrf_token", "xsrf", "_xsrf"}
 	}
 	return func(c *gin.Context) {
+		// 通过上下文标记跳过（需在本中间件之前设置）
+		if isCSRFSkipped(c) {
+			c.Next()
+			return
+		}
 		// 路径白名单放行
 		if isExemptPath(cfg.ExemptPaths, c.Request.URL.Path) {
 			c.Next()
@@ -131,6 +136,32 @@ func isRequestSecure(r *http.Request) bool {
 	}
 	if ssl := r.Header.Get("X-Forwarded-Ssl"); strings.EqualFold(ssl, "on") {
 		return true
+	}
+	return false
+}
+
+// CSRFSkipKey 为在 gin.Context 中标记跳过 CSRF 的键名。
+const CSRFSkipKey = "csrf_skip"
+
+// SkipCSRFMiddleware 返回一个将当前请求标记为跳过 CSRF 校验的中间件。
+// 可用于路由分组：group.Use(middleware.SkipCSRFMiddleware())
+func SkipCSRFMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set(CSRFSkipKey, true)
+		c.Next()
+	}
+}
+
+// SkipCSRF 便捷方法：在当前 Context 上设置跳过标记。
+// 注意：只有当调用发生在 CSRF 中间件之前（例如前置中间件）才有效。
+func SkipCSRF(c *gin.Context) { c.Set(CSRFSkipKey, true) }
+
+// isCSRFSkipped 判断 Context 是否已标记跳过。
+func isCSRFSkipped(c *gin.Context) bool {
+	if v, ok := c.Get(CSRFSkipKey); ok {
+		if b, _ := v.(bool); b {
+			return true
+		}
 	}
 	return false
 }
