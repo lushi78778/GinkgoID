@@ -335,11 +335,7 @@ func postLogin(c *gin.Context) {
 	}
 	ok, verr := passhash.Verify(password, u.PasswordHash)
 	if !ok {
-		hpfx := u.PasswordHash
-		if len(hpfx) > 24 {
-			hpfx = hpfx[:24]
-		}
-		logx.L().Info("login password verify failed", logx.String("username", username), logx.String("hash_prefix", hpfx), logx.String("verify_err", errString(verr)))
+		logx.L().Info("login password verify failed", logx.String("username", username), logx.String("verify_err", errString(verr)))
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_credentials"})
 		return
 	}
