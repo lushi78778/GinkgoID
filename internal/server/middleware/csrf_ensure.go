@@ -25,6 +25,11 @@ func EnsureCSRFCookie() gin.HandlerFunc {
 // RotateCSRFCookie 重新签发 CSRF Cookie（用于登录成功、权限变更等时机）。
 // ttl 为 Cookie 存活时间；推荐与会话同生命周期。
 func RotateCSRFCookie(c *gin.Context, ttl time.Duration) error {
+	return RotateCSRFCookieWithName(c, CSRFCookieName, ttl)
+}
+
+// RotateCSRFCookieWithName 重新签发指定名称的 CSRF Cookie，保持与配置一致的属性。
+func RotateCSRFCookieWithName(c *gin.Context, name string, ttl time.Duration) error {
 	tok, err := randx.ID(24)
 	if err != nil {
 		return err
@@ -32,7 +37,7 @@ func RotateCSRFCookie(c *gin.Context, ttl time.Duration) error {
 	cfg := config.C()
 	// 设置 SameSite=Lax，避免跨站导航自动携带；非 HttpOnly 便于前端读取
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(CSRFCookieName, tok, int(ttl.Seconds()), "/", cfg.Server.CookieDomain, cfg.Server.SecureCookies, false)
+	c.SetCookie(name, tok, int(ttl.Seconds()), "/", cfg.Server.CookieDomain, cfg.Server.SecureCookies, false)
 	return nil
 }
 

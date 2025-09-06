@@ -45,9 +45,10 @@ import (
 func NewRouter() *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
+	// Place RequestID first so subsequent logs can include it
+	r.Use(mw.RequestID())
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
-	r.Use(mw.RequestID())
 	r.Use(mw.SecurityHeaders())
 	r.Use(mw.HSTS())
 	// templates (embed FS)

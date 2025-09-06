@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"ginkgoid/internal/infra/errx"
 	"ginkgoid/internal/infra/logx"
@@ -93,17 +94,15 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 		// 安全方法：若缺失则自动下发 Token（双提交 Cookie 模式）
 		if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead || c.Request.Method == http.MethodOptions {
 			if token, err := c.Cookie(cfg.CookieName); err != nil || token == "" {
-				// 生成并设置 CSRF Cookie：SameSite=Lax，Secure(HTTPS 时)，Path=/，HttpOnly=false
-				if t, genErr := generateCSRFToken(); genErr == nil {
-					c.SetSameSite(http.SameSiteLaxMode)
-					c.SetCookie(cfg.CookieName, t, 0, "/", "", isRequestSecure(c.Request), false)
-				} else {
+				// 统一通过 RotateCSRFCookieWithName 设置 Cookie，确保 Domain/TTL/SameSite/Secure 一致
+				if genErr := RotateCSRFCookieWithName(c, cfg.CookieName, 24*time.Hour); genErr != nil {
 					// 生成失败则直接返回 500，避免下游继续
 					logx.L().Error("csrf reject: token generation failed",
 						logx.String("path", c.Request.URL.Path),
 						logx.String("method", c.Request.Method),
 						logx.String("client_ip", c.ClientIP()),
 						zap.Bool("https", isRequestSecure(c.Request)),
+						logx.Err(genErr),
 					)
 					rid := GetRequestID(c)
 					c.Header("X-Error", "1")
