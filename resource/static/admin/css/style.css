@@ -1,0 +1,15 @@
+.container-pd { padding: 16px; box-sizing: border-box; }
+.mt10 { margin-top: 10px; }
+.mb10 { margin-bottom: 10px; }
+.width-100 { width: 100%; display:block; }
+html, body { height:100%; }
+.layui-layout-admin .layui-body { bottom: 0; }
+iframe#mainFrame { width:100%; height: calc(100vh - 60px); border:0; display:block; }
+
+/* card helpers */
+.card { margin-bottom: 12px; }
+.card .layui-card-body { padding: 12px; }
+
+/* make layui table align neatly (use Layui defaults for width calc) */
+.layui-table-view { margin: 0; }
+.layui-form .layui-inline { margin-right: 8px; }

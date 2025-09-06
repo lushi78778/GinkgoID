@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Clients</title>
+  <link href="/assets/css/layui.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/assets/css/style.css"/>
+  <script src="/assets/js/layui.js"></script>
+</head>
+<body class="layui-fluid container-pd">
+  <div class="layui-card card">
+    <div class="layui-card-header">Clients</div>
+    <div class="layui-card-body">
+      <table class="layui-hide" id="tblClients" lay-filter="clientsTable"></table>
+      <script type="text/html" id="toolbarClients">
+        <div class="layui-btn-container">
+          <div class="layui-inline" style="margin-right:8px;">
+            <input id="qInput" class="layui-input" placeholder="search client_id/name" style="width:220px;"/>
+          </div>
+          <button class="layui-btn layui-btn-sm" lay-event="search">Search</button>
+          <button class="layui-btn layui-btn-sm" lay-event="add">Add</button>
+        </div>
+      </script>
+    </div>
+  </div>
+  <div class="layui-card card">
+    <div class="layui-card-header">Actions</div>
+    <div class="layui-card-body">
+      <form class="layui-form" id="statusForm">
+        <div class="layui-form-item"><label class="layui-form-label">ClientID</label><div class="layui-input-block"><input name="client_id" class="layui-input"/></div></div>
+        <div class="layui-form-item"><label class="layui-form-label">Status</label><div class="layui-input-block"><input name="status" class="layui-input" placeholder="1 or 0"/></div></div>
+        <div class="layui-form-item"><div class="layui-input-block"><button class="layui-btn" type="button" id="btnSetStatus">Set Status</button></div></div>
+      </form>
+      <form class="layui-form" id="editForm">
+        <div class="layui-form-item"><label class="layui-form-label">ClientID</label><div class="layui-input-block"><input name="client_id" class="layui-input"/></div></div>
+        <div class="layui-form-item"><label class="layui-form-label">Name</label><div class="layui-input-block"><input name="name" class="layui-input"/></div></div>
+        <div class="layui-form-item"><label class="layui-form-label">RedirectURIs(JSON)</label><div class="layui-input-block"><input name="redirect_uris" class="layui-input"/></div></div>
+        <div class="layui-form-item"><label class="layui-form-label">PostLogoutURIs(JSON)</label><div class="layui-input-block"><input name="post_logout_uris" class="layui-input"/></div></div>
+        <div class="layui-form-item"><label class="layui-form-label">Scopes(JSON)</label><div class="layui-input-block"><input name="scopes" class="layui-input"/></div></div>
+        <div class="layui-form-item"><div class="layui-input-block"><button class="layui-btn" type="button" id="btnUpdate">Update</button></div></div>
+      </form>
+      <form class="layui-form" id="secretForm">
+        <div class="layui-form-item"><label class="layui-form-label">ClientID</label><div class="layui-input-block"><input name="client_id" class="layui-input"/></div></div>
+        <div class="layui-form-item"><label class="layui-form-label">New Secret</label><div class="layui-input-block"><input name="secret" class="layui-input"/></div></div>
+        <div class="layui-form-item"><div class="layui-input-block"><button class="layui-btn" type="button" id="btnSetSecret">Set Secret</button></div></div>
+      </form>
+    </div>
+  </div>
+  <div class="layui-card card">
+    <div class="layui-card-header">Create</div>
+    <div class="layui-card-body">
+      <form class="layui-form" id="createForm">
+        <div class="layui-form-item"><label class="layui-form-label">ClientID</label><div class="layui-input-block"><input name="client_id" class="layui-input" required/></div></div>
+        <div class="layui-form-item"><label class="layui-form-label">Name</label><div class="layui-input-block"><input name="name" class="layui-input" /></div></div>
+        <div class="layui-form-item"><label class="layui-form-label">RedirectURIs</label><div class="layui-input-block"><input name="redirect_uris" class="layui-input" placeholder='["http://localhost:8081/callback"]'/></div></div>
+        <div class="layui-form-item"><label class="layui-form-label">Scopes</label><div class="layui-input-block"><input name="scopes" class="layui-input" placeholder='["openid","profile","email"]'/></div></div>
+        <div class="layui-form-item"><div class="layui-input-block"><button class="layui-btn" type="button" id="btnCreate">Create</button></div></div>
+      </form>
+    </div>
+  </div>
+  <script src="/assets/js/clients_table.js"></script>
+</body>
+</html>

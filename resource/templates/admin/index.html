@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>GinkgoID Admin</title>
+  <link href="/assets/css/layui.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/assets/css/style.css"/>
+  <script src="/assets/js/layui.js"></script>
+</head>
+<body class="layui-layout-body">
+  <div class="layui-layout layui-layout-admin">
+    <div class="layui-header">
+      <div class="layui-logo">GinkgoID Admin</div>
+      <ul class="layui-nav layui-layout-left">
+        <li class="layui-nav-item"><a href="#" data-href="/admin/ui/clients.html" class="menu-link">Clients</a></li>
+        <li class="layui-nav-item"><a href="#" data-href="/admin/ui/users.html" class="menu-link">Users</a></li>
+        <li class="layui-nav-item"><a href="#" data-href="/admin/ui/consents.html" class="menu-link">Consents</a></li>
+        <li class="layui-nav-item"><a href="#" data-href="/admin/ui/jwks.html" class="menu-link">JWKS</a></li>
+      </ul>
+      <ul class="layui-nav layui-layout-right">
+        <li class="layui-nav-item"><a href="/admin/logout">Logout</a></li>
+      </ul>
+    </div>
+
+    <div class="layui-side layui-bg-black">
+      <div class="layui-side-scroll">
+        <ul class="layui-nav layui-nav-tree" lay-shrink="all">
+          <li class="layui-nav-item layui-nav-itemed">
+            <a href="javascript:;">管理</a>
+            <dl class="layui-nav-child">
+              <dd><a href="#" data-href="/admin/ui/clients.html" class="menu-link">Clients</a></dd>
+              <dd><a href="#" data-href="/admin/ui/users.html" class="menu-link">Users</a></dd>
+              <dd><a href="#" data-href="/admin/ui/consents.html" class="menu-link">Consents</a></dd>
+              <dd><a href="#" data-href="/admin/ui/jwks.html" class="menu-link">JWKS</a></dd>
+            </dl>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="layui-body">
+      <iframe id="mainFrame" src="/admin/ui/clients.html" frameborder="0" class="width-100" style="height: calc(100vh - 60px);"></iframe>
+      <div class="mt10" style="padding:10px;">
+        <a href="{{.privacy_url}}" target="_blank">隐私政策</a> · <a href="{{.terms_url}}" target="_blank">用户协议</a>
+      </div>
+    </div>
+
+  </div>
+  <script src="/assets/js/admin-index.js"></script>
+</body>
+</html>

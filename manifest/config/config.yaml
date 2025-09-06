@@ -1,0 +1,48 @@
+server:
+  addr: ":8080"
+  public_base_url: "sso.xray.top"
+  # cookie_domain: "xray.top"
+  cookie_domain: "localhost"
+  secure_cookies: false
+  auto_migrate: true
+
+db:
+  driver: "mysql"
+  dsn: "ginkgoid:123456@tcp(127.0.0.1:3306)/ginkgoid?parseTime=true&charset=utf8mb4"
+
+redis:
+  enabled: true
+  addr: "127.0.0.1:6379"
+  db: 0
+  password: ""
+
+oidc:
+  # issuer: "https://sso.xray.top"
+  issuer: "http://localhost:8080"
+  scopes: ["openid","profile","email"]
+  id_token_ttl: "10m"
+  access_token_ttl: "15m"
+  force_pkce: true
+  force_nonce: true
+
+consent:
+  version: 1
+  remember_default: true
+  expire_days: 365
+
+security:
+  login_rate_per_min: 30
+  token_rate_per_min: 120
+  password_hash: "argon2id"
+  hsts: true
+  log_retain_days: 180
+  jwk_enc_passphrase: "CHANGE_ME_STRONG"
+  max_sessions_per_user: 5
+  allow_insecure_local_jwt: false
+
+admin:
+  bootstrap:
+    username: "admin"
+    password: "admin"
+  privacy_url: "https://sso.xray.top/privacy"
+  terms_url: "https://sso.xray.top/terms"

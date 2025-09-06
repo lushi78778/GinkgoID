@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Consents</title>
+  <link href="/assets/css/layui.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="/assets/css/style.css"/>
+  <script src="/assets/js/layui.js"></script>
+</head>
+<body class="layui-fluid container-pd">
+  <div class="layui-card card">
+    <div class="layui-card-header">Consents</div>
+    <div class="layui-card-body">
+      <table class="layui-hide" id="tblConsents" lay-filter="consentsTable"></table>
+      <script type="text/html" id="toolbarConsents">
+        <div class="layui-btn-container">
+          <div class="layui-inline" style="margin-right:8px;"><input id="c_uid" class="layui-input" placeholder="user_id" style="width:160px;"/></div>
+          <div class="layui-inline" style="margin-right:8px;"><input id="c_cid" class="layui-input" placeholder="client_id" style="width:160px;"/></div>
+          <button class="layui-btn layui-btn-sm" lay-event="search">Search</button>
+        </div>
+      </script>
+    </div>
+  </div>
+  <script src="/assets/js/consents_table.js"></script>
+</body>
+</html>

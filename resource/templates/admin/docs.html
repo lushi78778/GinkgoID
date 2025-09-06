@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>GinkgoID Service Documentation</title>
+  <link href="https://cdn.jsdelivr.net/npm/layui@2.11.6/dist/css/layui.min.css" rel="stylesheet"/>
+  <style>body{max-width:980px;margin:40px auto;padding:0 16px;}</style>
+</head>
+<body>
+  <h2>GinkgoID Service Documentation</h2>
+  <p>Issuer: <code>{{.issuer}}</code></p>
+  <ul>
+    <li>Discovery: <code>{{.base}}/.well-known/openid-configuration</code></li>
+    <li>JWKS: <code>{{.base}}/jwks.json</code></li>
+    <li>Authorize: <code>{{.base}}/authorize</code></li>
+    <li>Token: <code>{{.base}}/token</code></li>
+    <li>UserInfo: <code>{{.base}}/userinfo</code></li>
+    <li>Logout: <code>{{.base}}/logout</code></li>
+    <li>Introspection (RFC 7662): <code>{{.base}}/oauth2/introspect</code></li>
+    <li>Revocation (RFC 7009): <code>{{.base}}/oauth2/revoke</code></li>
+  </ul>
+  <p>See README for detailed parameters and flows.</p>
+</body>
+<script>/* no scripts needed */</script>
+</html>
+

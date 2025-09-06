@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>授权同意</title>
+  <link href="/assets/css/layui.css" rel="stylesheet"/>
+  <style>body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f7f7f7;margin:0} .card{width:480px;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.06)}</style>
+  <script src="/assets/js/layui.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval'; style-src 'self' https://cdn.jsdelivr.net; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'"/>
+  <meta name="referrer" content="strict-origin-when-cross-origin"/>
+  <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+  <meta http-equiv="X-Frame-Options" content="DENY"/>
+  <style>.scopes{margin:8px 0 16px 0;padding:12px;background:#fafafa;border:1px solid #eee;border-radius:6px}</style>
+  <script>function postConsent(){document.getElementById('consentForm').submit();}</script>
+  <base target="_self">
+  <noscript>JavaScript is required.</noscript>
+</head>
+<body>
+  <div class="card">
+    <h3 style="margin-bottom:8px;">授权同意</h3>
+    <div style="color:#666;margin-bottom:16px;">应用「{{.client_name}}」请求以下权限：</div>
+    <div class="scopes">
+      <ul style="margin:0;padding-left:18px;">
+        {{ range .scopes }}
+        <li>{{ . }}</li>
+        {{ end }}
+      </ul>
+    </div>
+    <form id="consentForm" class="layui-form" method="POST" action="/consent">
+      <input type="hidden" name="client_id" value="{{.client_id}}"/>
+      <input type="hidden" name="redirect_uri" value="{{.redirect_uri}}"/>
+      <input type="hidden" name="state" value="{{.state}}"/>
+      <input type="hidden" name="nonce" value="{{.nonce}}"/>
+      <input type="hidden" name="scope" value="{{.scope}}"/>
+      <input type="hidden" name="code_challenge" value="{{.code_challenge}}"/>
+      <input type="hidden" name="code_challenge_method" value="{{.code_challenge_method}}"/>
+      <input type="hidden" name="sid" value="{{.sid}}"/>
+      <div class="layui-form-item">
+        <input type="checkbox" name="remember" value="1" title="记住授权" {{ if .remember_default }}checked{{ end }} lay-skin="primary">
+      </div>
+      <div class="layui-form-item">
+        <button type="submit" class="layui-btn layui-btn-normal">同意</button>
+        <a href="{{.privacy_url}}" class="layui-btn layui-btn-primary" target="_blank">隐私政策</a>
+        <a href="{{.terms_url}}" class="layui-btn layui-btn-primary" target="_blank">用户协议</a>
+      </div>
+    </form>
+  </div>
+  <script>layui.use(function(){});</script>
+  
+</body>
+</html>
