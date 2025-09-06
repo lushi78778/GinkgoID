@@ -23,9 +23,9 @@ func CheckOriginRefererStrict(allowed []string) gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		// 若浏览器未发送两者，视作同源环境允许（避免部分内网场景误拒）
+		// 严格模式：若同时缺失 Origin 与 Referer，则拒绝
 		if c.Request.Header.Get("Origin") == "" && c.Request.Header.Get("Referer") == "" {
-			c.Next()
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": 403, "message": "origin_referer_forbidden"})
 			return
 		}
 		if matchAllowed(c, allowedSet) {
