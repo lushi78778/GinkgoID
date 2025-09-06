@@ -9,6 +9,7 @@ package admin
 import (
 	"context"
 	"ginkgoid/internal/infra/config"
+	"ginkgoid/internal/server/middleware"
 	"ginkgoid/internal/service/session"
 	res "ginkgoid/resource"
 	"github.com/gin-gonic/gin"
@@ -95,6 +96,8 @@ func Logout(c *gin.Context) {
 	if sid, err := c.Cookie(session.CookieName); err == nil && sid != "" {
 		_ = session.Revoke(context.Background(), sid)
 		session.ClearCookie(c)
+		// 清除 CSRF Cookie 一并失效
+		middleware.ClearCSRFCookie(c)
 	}
 	c.Redirect(http.StatusFound, "/login")
 }

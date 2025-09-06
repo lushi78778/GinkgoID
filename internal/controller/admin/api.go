@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"ginkgoid/internal/infra/db"
 	"ginkgoid/internal/model/entity"
+	"ginkgoid/internal/server/middleware"
 	"ginkgoid/internal/service/jwk"
 	"ginkgoid/internal/service/revocation"
 	"ginkgoid/internal/service/session"
@@ -22,10 +23,36 @@ import (
 )
 
 func ok(c *gin.Context, data any) {
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": data})
+	rid := middleware.GetRequestID(c)
+	c.Header("X-Error", "0")
+	c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "ok", "request_id": rid, "data": data})
 }
 func fail(c *gin.Context, code int, msg string) {
-	c.JSON(http.StatusOK, gin.H{"code": code, "message": msg})
+	rid := middleware.GetRequestID(c)
+	c.Header("X-Error", "1")
+	c.Header("X-Error-Code", fmt.Sprintf("%d", code))
+	c.Header("X-Error-Message", msg)
+	c.JSON(http.StatusOK, gin.H{"code": code, "msg": msg, "request_id": rid})
+}
+
+// tableFail 用于 Layui 表格错误响应，包含 request_id 与错误头。
+func tableFail(c *gin.Context, err error) {
+	rid := middleware.GetRequestID(c)
+	msg := "error"
+	if err != nil {
+		msg = err.Error()
+	}
+	c.Header("X-Error", "1")
+	c.Header("X-Error-Code", "1")
+	c.Header("X-Error-Message", msg)
+	c.JSON(http.StatusOK, gin.H{"code": 1, "msg": msg, "request_id": rid, "count": 0, "data": []any{}})
+}
+
+// tableOK 用于 Layui 表格成功响应，包含 request_id。
+func tableOK(c *gin.Context, count int64, rows any) {
+	rid := middleware.GetRequestID(c)
+	c.Header("X-Error", "0")
+	c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "ok", "request_id": rid, "count": count, "data": rows})
 }
 
 // Clients
@@ -67,19 +94,19 @@ func ListClientsTable(c *gin.Context) {
 	}
 	var total int64
 	if err := dbx.Model(&entity.Client{}).Count(&total).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": err.Error(), "count": 0, "data": []any{}})
+		tableFail(c, err)
 		return
 	}
 	var list []entity.Client
 	if err := dbx.Offset(offset).Limit(limit).Find(&list).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "msg": err.Error(), "count": 0, "data": []any{}})
+		tableFail(c, err)
 		return
 	}
 	rows := make([]gin.H, 0, len(list))
 	for _, v := range list {
 		rows = append(rows, gin.H{"client_id": v.ClientID, "name": v.Name, "status": v.Status})
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "ok", "count": total, "data": rows})
+	tableOK(c, total, rows)
 }
 
 func atoiDefault(s string, def int) int {
@@ -228,12 +255,12 @@ func ListUsersTable(c *gin.Context) {
 	}
 	var total int64
 	if err := dbx.Count(&total).Error; err != nil {
-		c.JSON(200, gin.H{"code": 1, "msg": err.Error(), "count": 0, "data": []any{}})
+		tableFail(c, err)
 		return
 	}
 	var list []entity.User
 	if err := dbx.Offset(offset).Limit(limit).Find(&list).Error; err != nil {
-		c.JSON(200, gin.H{"code": 1, "msg": err.Error(), "count": 0, "data": []any{}})
+		tableFail(c, err)
 		return
 	}
 	rows := make([]gin.H, 0, len(list))
@@ -244,7 +271,7 @@ func ListUsersTable(c *gin.Context) {
 		}
 		rows = append(rows, gin.H{"id": v.ID, "username": v.Username, "email": email, "email_verified": v.EmailVerified, "status": v.Status, "role": v.Role})
 	}
-	c.JSON(200, gin.H{"code": 0, "msg": "ok", "count": total, "data": rows})
+	tableOK(c, total, rows)
 }
 
 // CreateUser 创建用户。
@@ -356,6 +383,8 @@ func PatchUserRole(c *gin.Context) {
 		fail(c, 500, err.Error())
 		return
 	}
+	// 角色变更后，旋转当前操作者的 CSRF Token（防御口令/权限变更后的重用窗口）
+	_ = middleware.RotateCSRFCookie(c, 24*time.Hour)
 	ok(c, gin.H{"id": id, "role": body.Role})
 }
 
@@ -398,19 +427,19 @@ func ListConsentsTable(c *gin.Context) {
 	}
 	var total int64
 	if err := dbx.Count(&total).Error; err != nil {
-		c.JSON(200, gin.H{"code": 1, "msg": err.Error(), "count": 0, "data": []any{}})
+		tableFail(c, err)
 		return
 	}
 	var list []entity.Consent
 	if err := dbx.Offset(offset).Limit(limit).Find(&list).Error; err != nil {
-		c.JSON(200, gin.H{"code": 1, "msg": err.Error(), "count": 0, "data": []any{}})
+		tableFail(c, err)
 		return
 	}
 	rows := make([]gin.H, 0, len(list))
 	for _, v := range list {
 		rows = append(rows, gin.H{"id": v.ID, "user_id": v.UserID, "client_id": v.ClientID, "scopes": v.Scopes})
 	}
-	c.JSON(200, gin.H{"code": 0, "msg": "ok", "count": total, "data": rows})
+	tableOK(c, total, rows)
 }
 
 // DeleteConsent 删除同意记录。

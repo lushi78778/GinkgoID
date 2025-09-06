@@ -25,6 +25,11 @@ import (
 // CSRFCookieName 为 CSRF Token 的默认 Cookie 名称。
 const CSRFCookieName = "csrf_token"
 
+// 生命周期建议：
+// - 首次访问或缺失：自动签发（本文件或 EnsureCSRFCookie 中间件）。
+// - 登录成功：建议旋转 Token（参见 RotateCSRFCookie）。
+// - 权限变更/口令修改/登出：建议旋转或清除 Token（参见 RotateCSRFCookie/ClearCSRFCookie）。
+
 // CSRFConfig 用于配置 CSRF 中间件的策略。
 type CSRFConfig struct {
 	// CookieName 存储 Token 的 Cookie 名称。
@@ -100,7 +105,11 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 						logx.String("client_ip", c.ClientIP()),
 						zap.Bool("https", isRequestSecure(c.Request)),
 					)
-					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"code": int(errx.CSRFTokenGenFailed), "message": errx.Msg(errx.CSRFTokenGenFailed)})
+					rid := GetRequestID(c)
+					c.Header("X-Error", "1")
+					c.Header("X-Error-Code", "1500")
+					c.Header("X-Error-Message", errx.Msg(errx.CSRFTokenGenFailed))
+					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"code": int(errx.CSRFTokenGenFailed), "msg": errx.Msg(errx.CSRFTokenGenFailed), "request_id": rid})
 					return
 				}
 			}
@@ -123,7 +132,11 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 					logx.String("xf_proto", c.GetHeader("X-Forwarded-Proto")),
 					logx.String("xf_host", c.GetHeader("X-Forwarded-Host")),
 				)
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": int(errx.CSRFOriginInvalid), "message": errx.Msg(errx.CSRFOriginInvalid)})
+				rid := GetRequestID(c)
+				c.Header("X-Error", "1")
+				c.Header("X-Error-Code", "1403")
+				c.Header("X-Error-Message", errx.Msg(errx.CSRFOriginInvalid))
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": int(errx.CSRFOriginInvalid), "msg": errx.Msg(errx.CSRFOriginInvalid), "request_id": rid})
 				return
 			}
 		}
@@ -137,7 +150,11 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 				logx.String("client_ip", c.ClientIP()),
 				logx.String("cookie_name", cfg.CookieName),
 			)
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": int(errx.CSRFTokenMissing), "message": errx.Msg(errx.CSRFTokenMissing)})
+			rid := GetRequestID(c)
+			c.Header("X-Error", "1")
+			c.Header("X-Error-Code", "1401")
+			c.Header("X-Error-Message", errx.Msg(errx.CSRFTokenMissing))
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": int(errx.CSRFTokenMissing), "msg": errx.Msg(errx.CSRFTokenMissing), "request_id": rid})
 			return
 		}
 		// 从请求中提取 Token（Header 优先，表单兜底）
@@ -151,7 +168,11 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 				logx.String("token_source", source),
 				zap.Bool("has_token", token != ""),
 			)
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": int(errx.CSRFTokenInvalid), "message": errx.Msg(errx.CSRFTokenInvalid)})
+			rid := GetRequestID(c)
+			c.Header("X-Error", "1")
+			c.Header("X-Error-Code", "1402")
+			c.Header("X-Error-Message", errx.Msg(errx.CSRFTokenInvalid))
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": int(errx.CSRFTokenInvalid), "msg": errx.Msg(errx.CSRFTokenInvalid), "request_id": rid})
 			return
 		}
 		c.Next()

@@ -47,6 +47,7 @@ func NewRouter() *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
+	r.Use(mw.RequestID())
 	r.Use(mw.SecurityHeaders())
 	r.Use(mw.HSTS())
 	// templates (embed FS)
@@ -350,9 +351,8 @@ func postLogin(c *gin.Context) {
 		return
 	}
 	session.SetCookie(c, sid, 24*time.Hour)
-	if tok, err := randx.ID(24); err == nil {
-		c.SetCookie(mw.CSRFCookieName, tok, int((24 * time.Hour).Seconds()), "/", config.C().Server.CookieDomain, config.C().Server.SecureCookies, false)
-	}
+	// 轮换 CSRF Cookie 与会话绑定的生命周期一致
+	_ = mw.RotateCSRFCookie(c, 24*time.Hour)
 	if cont != "" {
 		c.Redirect(http.StatusFound, cont)
 		return
@@ -690,6 +690,8 @@ func logout(c *gin.Context) {
 	if sid, err := c.Cookie(session.CookieName); err == nil && sid != "" {
 		_ = session.Revoke(ctx, sid)
 		session.ClearCookie(c)
+		// 并清除 CSRF Cookie
+		mw.ClearCSRFCookie(c)
 	}
 
 	if idToken != "" {
