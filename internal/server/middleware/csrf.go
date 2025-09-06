@@ -11,6 +11,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// 注意：与 CORS 的装配顺序
+// - 推荐先挂载 CORS 中间件处理预检与跨域响应头，再挂载 CSRF。
+// - 例：
+//   r := gin.New()
+//   r.Use(cors.Default())          // 来自 github.com/gin-contrib/cors
+//   r.Use(middleware.CSRF())       // 或 CSRFWithConfig(...)
+// - 理由：预检请求（OPTIONS）与跨域响应头应由 CORS 决定，CSRF 仅拦截业务请求；本中间件已放行 OPTIONS。
+
 // CSRFCookieName 为 CSRF Token 的默认 Cookie 名称。
 const CSRFCookieName = "csrf_token"
 
@@ -39,12 +47,18 @@ func DefaultCSRFConfig() CSRFConfig {
 	}
 }
 
-// CSRF 保护非 GET 请求：要求请求头 X-CSRF-Token 与名为 csrf_token 的 Cookie 一致
+// CSRF 保护非 GET 请求：要求请求头 X-CSRF-Token（或配置的 Header）与 Cookie 中的 Token 一致
 // （双提交 Cookie 模式）。用于管理 API 的基本 CSRF 防护。
+// 中间件顺序建议：应在 CORS 中间件之后挂载。
 // CSRF 返回使用默认配置的中间件。
 func CSRF() gin.HandlerFunc { return CSRFWithConfig(DefaultCSRFConfig()) }
 
 // CSRFWithConfig 返回使用自定义配置的中间件。
+// 顺序建议：确保先挂载 CORS，再挂载 CSRF。
+// 示例：
+//
+//	r.Use(cors.Default())
+//	r.Use(middleware.CSRFWithConfig(middleware.CSRFConfig{ CheckOrigin: true }))
 func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 	// 兜底默认值
 	if cfg.CookieName == "" {
