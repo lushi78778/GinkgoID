@@ -1,8 +1,8 @@
 package middleware
 
 import (
+	"crypto/subtle"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,14 +36,9 @@ func CSRF() gin.HandlerFunc {
 }
 
 func secureEqual(a, b string) bool {
-	// 常量时间比较，避免时序侧信道；长度不一致直接失败
-	if len(a) != len(b) {
+	// 常量时间比较并确保非空
+	if len(a) == 0 || len(a) != len(b) {
 		return false
 	}
-	var v byte
-	for i := 0; i < len(a); i++ {
-		v |= a[i] ^ b[i]
-	}
-	// 附加检查：非空（防止空值通过）
-	return v == 0 && !strings.EqualFold(a, "")
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
