@@ -20,6 +20,8 @@ type CSRFConfig struct {
 	CookieName string
 	// HeaderNames 允许用于传递 Token 的请求头名，按顺序匹配。
 	HeaderNames []string
+	// FormFieldNames 允许从表单读取的字段名（仅对表单 Content-Type 生效）。
+	FormFieldNames []string
 	// ExemptPaths 免校验的路径（支持精确匹配或以 * 作为前缀通配，如 /webhook/*）。
 	ExemptPaths []string
 	// CheckOrigin 是否对非安全方法校验 Origin/Referer 与请求同源。
@@ -29,10 +31,11 @@ type CSRFConfig struct {
 // DefaultCSRFConfig 返回默认配置。
 func DefaultCSRFConfig() CSRFConfig {
 	return CSRFConfig{
-		CookieName:  CSRFCookieName,
-		HeaderNames: []string{"X-CSRF-Token"},
-		ExemptPaths: nil,
-		CheckOrigin: false,
+		CookieName:     CSRFCookieName,
+		HeaderNames:    []string{"X-CSRF-Token", "X-XSRF-TOKEN"},
+		FormFieldNames: []string{"_csrf", "csrf", "csrf_token", "xsrf", "_xsrf"},
+		ExemptPaths:    nil,
+		CheckOrigin:    false,
 	}
 }
 
@@ -49,6 +52,9 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 	}
 	if len(cfg.HeaderNames) == 0 {
 		cfg.HeaderNames = []string{"X-CSRF-Token"}
+	}
+	if len(cfg.FormFieldNames) == 0 {
+		cfg.FormFieldNames = []string{"_csrf", "csrf", "csrf_token", "xsrf", "_xsrf"}
 	}
 	return func(c *gin.Context) {
 		// 路径白名单放行
@@ -88,15 +94,9 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": 403, "message": "missing_csrf_cookie"})
 			return
 		}
-		// 从配置的 Header 列表中读取 Token
-		var header string
-		for _, name := range cfg.HeaderNames {
-			if v := c.GetHeader(name); v != "" {
-				header = v
-				break
-			}
-		}
-		if header == "" || !secureEqual(header, cookie) {
+		// 从请求中提取 Token（Header 优先，表单兜底）
+		token := tokenFromRequest(c, cfg)
+		if token == "" || !secureEqual(token, cookie) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": 403, "message": "invalid_csrf_token"})
 			return
 		}
@@ -133,6 +133,27 @@ func isRequestSecure(r *http.Request) bool {
 		return true
 	}
 	return false
+}
+
+// tokenFromRequest 从请求头或表单字段中提取 CSRF Token。
+// 优先从 HeaderNames 读取；若未命中且为表单提交，则尝试从 FormFieldNames 读取。
+func tokenFromRequest(c *gin.Context, cfg CSRFConfig) string {
+	// Header 优先
+	for _, name := range cfg.HeaderNames {
+		if v := c.GetHeader(name); v != "" {
+			return v
+		}
+	}
+	// 表单字段（仅处理常见表单类型）
+	ct := c.GetHeader("Content-Type")
+	if strings.HasPrefix(ct, "application/x-www-form-urlencoded") || strings.HasPrefix(ct, "multipart/form-data") {
+		for _, name := range cfg.FormFieldNames {
+			if v := c.PostForm(name); v != "" {
+				return v
+			}
+		}
+	}
+	return ""
 }
 
 // isExemptPath 判断当前路径是否在白名单中。
