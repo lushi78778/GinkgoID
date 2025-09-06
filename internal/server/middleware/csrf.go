@@ -8,7 +8,9 @@ import (
 	"net/url"
 	"strings"
 
+	"ginkgoid/internal/infra/logx"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 // 注意：与 CORS 的装配顺序
@@ -91,6 +93,12 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 					c.SetCookie(cfg.CookieName, t, 0, "/", "", isRequestSecure(c.Request), false)
 				} else {
 					// 生成失败则直接返回 500，避免下游继续
+					logx.L().Error("csrf reject: token generation failed",
+						logx.String("path", c.Request.URL.Path),
+						logx.String("method", c.Request.Method),
+						logx.String("client_ip", c.ClientIP()),
+						zap.Bool("https", isRequestSecure(c.Request)),
+					)
 					c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "csrf_token_generation_failed"})
 					return
 				}
@@ -102,6 +110,18 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 		// 非安全方法：如启用，校验 Origin/Referer 同源
 		if cfg.CheckOrigin {
 			if !checkSameOrigin(c.Request) {
+				scheme, host := effectiveSchemeAndHost(c.Request)
+				logx.L().Warn("csrf reject: invalid origin",
+					logx.String("path", c.Request.URL.Path),
+					logx.String("method", c.Request.Method),
+					logx.String("client_ip", c.ClientIP()),
+					logx.String("origin", c.GetHeader("Origin")),
+					logx.String("referer", c.GetHeader("Referer")),
+					logx.String("expected_scheme", scheme),
+					logx.String("expected_host", host),
+					logx.String("xf_proto", c.GetHeader("X-Forwarded-Proto")),
+					logx.String("xf_host", c.GetHeader("X-Forwarded-Host")),
+				)
 				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": 403, "message": "invalid_origin"})
 				return
 			}
@@ -110,12 +130,26 @@ func CSRFWithConfig(cfg CSRFConfig) gin.HandlerFunc {
 		// 从 Cookie 读取 CSRF Token
 		cookie, err := c.Cookie(cfg.CookieName)
 		if err != nil || cookie == "" {
+			logx.L().Warn("csrf reject: missing cookie",
+				logx.String("path", c.Request.URL.Path),
+				logx.String("method", c.Request.Method),
+				logx.String("client_ip", c.ClientIP()),
+				logx.String("cookie_name", cfg.CookieName),
+			)
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": 403, "message": "missing_csrf_cookie"})
 			return
 		}
 		// 从请求中提取 Token（Header 优先，表单兜底）
-		token := tokenFromRequest(c, cfg)
+		token, source := tokenFromRequest(c, cfg)
 		if token == "" || !secureEqual(token, cookie) {
+			logx.L().Warn("csrf reject: invalid token",
+				logx.String("path", c.Request.URL.Path),
+				logx.String("method", c.Request.Method),
+				logx.String("client_ip", c.ClientIP()),
+				logx.String("cookie_name", cfg.CookieName),
+				logx.String("token_source", source),
+				zap.Bool("has_token", token != ""),
+			)
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": 403, "message": "invalid_csrf_token"})
 			return
 		}
@@ -182,11 +216,11 @@ func isCSRFSkipped(c *gin.Context) bool {
 
 // tokenFromRequest 从请求头或表单字段中提取 CSRF Token。
 // 优先从 HeaderNames 读取；若未命中且为表单提交，则尝试从 FormFieldNames 读取。
-func tokenFromRequest(c *gin.Context, cfg CSRFConfig) string {
+func tokenFromRequest(c *gin.Context, cfg CSRFConfig) (string, string) {
 	// Header 优先
 	for _, name := range cfg.HeaderNames {
 		if v := c.GetHeader(name); v != "" {
-			return v
+			return v, "header:" + name
 		}
 	}
 	// 表单字段（仅处理常见表单类型）
@@ -194,11 +228,11 @@ func tokenFromRequest(c *gin.Context, cfg CSRFConfig) string {
 	if strings.HasPrefix(ct, "application/x-www-form-urlencoded") || strings.HasPrefix(ct, "multipart/form-data") {
 		for _, name := range cfg.FormFieldNames {
 			if v := c.PostForm(name); v != "" {
-				return v
+				return v, "form:" + name
 			}
 		}
 	}
-	return ""
+	return "", ""
 }
 
 // isExemptPath 判断当前路径是否在白名单中。
