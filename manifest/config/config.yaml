@@ -5,6 +5,11 @@ server:
   cookie_domain: "localhost"
   secure_cookies: false
   auto_migrate: true
+  # 是否启用 Swagger 文档与 UI
+  swagger: true
+  # 文档 UI 与 JSON 地址（单一入口，按 Tag 分组显示）
+  swagger_ui_path: "/swagger"   # http://localhost:8080/swagger/index.html
+  swagger_doc_url: ""            # 为空=doc.json（服务端会从 docs/swagger.json 或 docs/swagger.yaml 读取）
 
 db:
   driver: "mysql"

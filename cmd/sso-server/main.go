@@ -1,5 +1,24 @@
 // sso-server 启动入口：加载配置与日志，初始化 DB/Redis，
 // 执行 AutoMigrate，完成 JWK 与管理员引导，并启动 HTTP 服务。
+//
+// @title           GinkgoID OpenAPI
+// @version         1.0
+// @description     GinkgoID 提供的公开 OIDC 端点与管理后台 API。
+// @contact.name    GinkgoID
+// @BasePath        /
+// @schemes         http https
+// @securityDefinitions.apikey Session
+// @in              cookie
+// @name            sid
+// @securityDefinitions.apikey CSRF
+// @in              header
+// @name            X-CSRF-Token
+// @tag.name        Public
+// @tag.description 健康与诊断等公共端点（/healthz、/readyz、/metrics、/debug/vars 等）
+// @tag.name        OIDC
+// @tag.description 认证与 OIDC 流程相关 API（/login、/authorize、/token、/userinfo、/logout、/.well-known/openid-configuration 等）
+// @tag.name        Admin
+// @tag.description 管理后台 API（/admin/api/...），需会话与 CSRF 校验
 package main
 
 import (

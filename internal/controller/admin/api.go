@@ -58,18 +58,27 @@ func tableOK(c *gin.Context, count int64, rows any) {
 // Clients
 // ListClients 列出客户端（最多 1000 条，调试/导出用途）。
 // GET /admin/api/clients
+// ListClients 列出客户端
+// @Summary      列出客户端
+// @Description  返回最多 1000 条客户端列表
+// @Tags         Admin
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Success      200 {object} admin.ClientsResponse
+// @Router       /admin/api/clients [get]
 func ListClients(c *gin.Context) {
 	var list []entity.Client
 	db.G().WithContext(c.Request.Context()).Limit(1000).Find(&list)
-	out := make([]gin.H, 0, len(list))
+	out := make([]ClientItem, 0, len(list))
 	for _, v := range list {
-		out = append(out, gin.H{
-			"client_id":        v.ClientID,
-			"name":             v.Name,
-			"status":           v.Status,
-			"redirect_uris":    v.RedirectURIs,
-			"post_logout_uris": v.PostLogoutURIs,
-			"scopes":           v.Scopes,
+		out = append(out, ClientItem{
+			ClientID:       v.ClientID,
+			Name:           v.Name,
+			Status:         v.Status,
+			RedirectURIs:   v.RedirectURIs,
+			PostLogoutURIs: v.PostLogoutURIs,
+			Scopes:         v.Scopes,
 		})
 	}
 	ok(c, out)
@@ -78,6 +87,17 @@ func ListClients(c *gin.Context) {
 // ListClientsTable returns data for Layui table with pagination
 // ListClientsTable 以 Layui 表格所需格式返回客户端分页数据。
 // GET /admin/api/clients/table?page=&limit=&q=
+// @Summary      客户端表格
+// @Description  以 Layui 表格格式返回分页数据
+// @Tags         Admin
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        page  query int false "页码"
+// @Param        limit query int false "每页大小(<=200)"
+// @Param        q     query string false "搜索关键词"
+// @Success      200 {object} admin.TableClientsResponse
+// @Router       /admin/api/clients/table [get]
 func ListClientsTable(c *gin.Context) {
 	// query params: page, limit, q
 	page := atoiDefault(c.DefaultQuery("page", "1"), 1)
@@ -102,9 +122,9 @@ func ListClientsTable(c *gin.Context) {
 		tableFail(c, err)
 		return
 	}
-	rows := make([]gin.H, 0, len(list))
+	rows := make([]ClientRow, 0, len(list))
 	for _, v := range list {
-		rows = append(rows, gin.H{"client_id": v.ClientID, "name": v.Name, "status": v.Status})
+		rows = append(rows, ClientRow{ClientID: v.ClientID, Name: v.Name, Status: v.Status})
 	}
 	tableOK(c, total, rows)
 }
@@ -134,6 +154,18 @@ type UpsertClientReq struct {
 // CreateClient 创建客户端。
 // POST /admin/api/clients
 // body: {client_id,name,secret?,redirect_uris[],post_logout_uris[],scopes[],status?}
+// @Summary      创建客户端
+// @Description  创建新的 OAuth 客户端
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        body body   admin.UpsertClientReq true "客户端信息"
+// @Success      200  {object} map[string]any
+// @Failure      400  {object} map[string]any
+// @Failure      500  {object} map[string]any
+// @Router       /admin/api/clients [post]
 func CreateClient(c *gin.Context) {
 	var req UpsertClientReq
 	if err := c.BindJSON(&req); err != nil {
@@ -161,6 +193,18 @@ func CreateClient(c *gin.Context) {
 
 // UpdateClient 更新客户端（不提供的字段不变）。
 // PUT /admin/api/clients/:id
+// @Summary      更新客户端
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        id   path   string          true  "client_id"
+// @Param        body body   admin.UpsertClientReq true  "更新信息（未提供的字段不变）"
+// @Success      200  {object} map[string]any
+// @Failure      400  {object} map[string]any
+// @Failure      500  {object} map[string]any
+// @Router       /admin/api/clients/{id} [put]
 func UpdateClient(c *gin.Context) {
 	id := c.Param("id")
 	var req UpsertClientReq
@@ -204,6 +248,18 @@ func UpdateClient(c *gin.Context) {
 
 // PatchClientStatus 启停客户端。
 // PATCH /admin/api/clients/:id/status  body: {status}
+// @Summary      启停客户端
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        id   path   string true "client_id"
+// @Param        body body   admin.ClientStatusPatchReq true "状态"
+// @Success      200  {object} map[string]any
+// @Failure      400  {object} map[string]any
+// @Failure      500  {object} map[string]any
+// @Router       /admin/api/clients/{id}/status [patch]
 func PatchClientStatus(c *gin.Context) {
 	id := c.Param("id")
 	var body struct {
@@ -223,16 +279,23 @@ func PatchClientStatus(c *gin.Context) {
 // Users
 // ListUsers 列出用户（最多 1000 条）。
 // GET /admin/api/users
+// @Summary      列出用户
+// @Tags         Admin
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Success      200 {object} admin.UsersResponse
+// @Router       /admin/api/users [get]
 func ListUsers(c *gin.Context) {
 	var list []entity.User
 	db.G().WithContext(c.Request.Context()).Limit(1000).Find(&list)
-	out := make([]gin.H, 0, len(list))
+	out := make([]UserRow, 0, len(list))
 	for _, v := range list {
 		email := ""
 		if v.Email != nil {
 			email = *v.Email
 		}
-		out = append(out, gin.H{"id": v.ID, "username": v.Username, "email": email, "email_verified": v.EmailVerified, "role": v.Role})
+		out = append(out, UserRow{ID: v.ID, Username: v.Username, Email: email, EmailVerified: v.EmailVerified, Role: v.Role})
 	}
 	ok(c, out)
 }
@@ -240,6 +303,17 @@ func ListUsers(c *gin.Context) {
 // Layui table for users
 // ListUsersTable 以 Layui 表格格式返回用户分页数据。
 // GET /admin/api/users/table?page=&limit=&q=
+// @Summary      用户表格
+// @Description  以 Layui 表格格式返回分页数据
+// @Tags         Admin
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        page  query int false "页码"
+// @Param        limit query int false "每页大小(<=200)"
+// @Param        q     query string false "搜索关键词"
+// @Success      200 {object} admin.TableUsersResponse
+// @Router       /admin/api/users/table [get]
 func ListUsersTable(c *gin.Context) {
 	page := atoiDefault(c.DefaultQuery("page", "1"), 1)
 	limit := atoiDefault(c.DefaultQuery("limit", "10"), 10)
@@ -263,19 +337,30 @@ func ListUsersTable(c *gin.Context) {
 		tableFail(c, err)
 		return
 	}
-	rows := make([]gin.H, 0, len(list))
+	rows := make([]UserRow, 0, len(list))
 	for _, v := range list {
 		email := ""
 		if v.Email != nil {
 			email = *v.Email
 		}
-		rows = append(rows, gin.H{"id": v.ID, "username": v.Username, "email": email, "email_verified": v.EmailVerified, "status": v.Status, "role": v.Role})
+		rows = append(rows, UserRow{ID: v.ID, Username: v.Username, Email: email, EmailVerified: v.EmailVerified, Status: v.Status, Role: v.Role})
 	}
 	tableOK(c, total, rows)
 }
 
 // CreateUser 创建用户。
 // POST /admin/api/users  body: {username,password,email?,email_verified?,role?}
+// @Summary      创建用户
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        body body   admin.CreateUserReq true "用户信息"
+// @Success      200  {object} map[string]any
+// @Failure      400  {object} map[string]any
+// @Failure      500  {object} map[string]any
+// @Router       /admin/api/users [post]
 func CreateUser(c *gin.Context) {
 	var body struct {
 		Username, Password, Email, Role string
@@ -305,6 +390,18 @@ func CreateUser(c *gin.Context) {
 
 // PatchUserPassword 重置用户口令。
 // PATCH /admin/api/users/:id/password  body: {password}
+// @Summary      重置用户口令
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        id   path   string true "用户ID"
+// @Param        body body   admin.PatchUserPasswordReq true "新密码"
+// @Success      200  {object} map[string]any
+// @Failure      400  {object} map[string]any
+// @Failure      500  {object} map[string]any
+// @Router       /admin/api/users/{id}/password [patch]
 func PatchUserPassword(c *gin.Context) {
 	id := c.Param("id")
 	var body struct{ Password string }
@@ -323,6 +420,16 @@ func PatchUserPassword(c *gin.Context) {
 // Revoke all active sessions of a user (admin action)
 // RevokeUserSessions 注销某用户的全部会话。
 // POST /admin/api/users/:id/sessions/revoke_all
+// @Summary      撤销用户所有会话
+// @Tags         Admin
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        id   path   string true "用户ID"
+// @Success      200  {object} map[string]any
+// @Failure      400  {object} map[string]any
+// @Failure      500  {object} map[string]any
+// @Router       /admin/api/users/{id}/sessions/revoke_all [post]
 func RevokeUserSessions(c *gin.Context) {
 	id := c.Param("id")
 	var uid uint64
@@ -341,6 +448,18 @@ func RevokeUserSessions(c *gin.Context) {
 // Update user's email and verification status
 // PatchUserEmail 设置用户邮箱与验证状态。
 // PATCH /admin/api/users/:id/email  body: {email,email_verified?}
+// @Summary      设置用户邮箱
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        id   path   string true "用户ID"
+// @Param        body body   admin.PatchUserEmailReq true "邮箱信息"
+// @Success      200  {object} map[string]any
+// @Failure      400  {object} map[string]any
+// @Failure      500  {object} map[string]any
+// @Router       /admin/api/users/{id}/email [patch]
 func PatchUserEmail(c *gin.Context) {
 	id := c.Param("id")
 	var body struct {
@@ -370,6 +489,18 @@ func PatchUserEmail(c *gin.Context) {
 // Update user's role
 // PatchUserRole 设置用户角色（admin/operator/auditor/user）。
 // PATCH /admin/api/users/:id/role  body: {role}
+// @Summary      设置用户角色
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        id   path   string true "用户ID"
+// @Param        body body   admin.PatchUserRoleReq true "角色"
+// @Success      200  {object} map[string]any
+// @Failure      400  {object} map[string]any
+// @Failure      500  {object} map[string]any
+// @Router       /admin/api/users/{id}/role [patch]
 func PatchUserRole(c *gin.Context) {
 	id := c.Param("id")
 	var body struct {
@@ -391,6 +522,15 @@ func PatchUserRole(c *gin.Context) {
 // Consents
 // ListConsents 列出同意记录。
 // GET /admin/api/consents?user_id=&client_id=
+// @Summary      列出同意记录
+// @Tags         Admin
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        user_id  query string false "用户ID"
+// @Param        client_id query string false "客户端ID"
+// @Success      200 {object} admin.ConsentsResponse
+// @Router       /admin/api/consents [get]
 func ListConsents(c *gin.Context) {
 	var list []entity.Consent
 	q := db.G().WithContext(c.Request.Context())
@@ -401,9 +541,9 @@ func ListConsents(c *gin.Context) {
 		q = q.Where("client_id = ?", cid)
 	}
 	q.Limit(1000).Find(&list)
-	out := make([]gin.H, 0, len(list))
+	out := make([]ConsentRow, 0, len(list))
 	for _, v := range list {
-		out = append(out, gin.H{"id": v.ID, "user_id": v.UserID, "client_id": v.ClientID, "scopes": v.Scopes})
+		out = append(out, ConsentRow{ID: v.ID, UserID: v.UserID, ClientID: v.ClientID, Scopes: v.Scopes})
 	}
 	ok(c, out)
 }
@@ -411,6 +551,18 @@ func ListConsents(c *gin.Context) {
 // Layui table for consents
 // ListConsentsTable 以 Layui 表格格式返回同意记录分页数据。
 // GET /admin/api/consents/table?page=&limit=&user_id=&client_id=
+// @Summary      同意记录表格
+// @Description  以 Layui 表格格式返回分页数据
+// @Tags         Admin
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        page  query int false "页码"
+// @Param        limit query int false "每页大小(<=200)"
+// @Param        user_id  query string false "用户ID"
+// @Param        client_id query string false "客户端ID"
+// @Success      200 {object} admin.TableConsentsResponse
+// @Router       /admin/api/consents/table [get]
 func ListConsentsTable(c *gin.Context) {
 	page := atoiDefault(c.DefaultQuery("page", "1"), 1)
 	limit := atoiDefault(c.DefaultQuery("limit", "10"), 10)
@@ -435,15 +587,24 @@ func ListConsentsTable(c *gin.Context) {
 		tableFail(c, err)
 		return
 	}
-	rows := make([]gin.H, 0, len(list))
+	rows := make([]ConsentRow, 0, len(list))
 	for _, v := range list {
-		rows = append(rows, gin.H{"id": v.ID, "user_id": v.UserID, "client_id": v.ClientID, "scopes": v.Scopes})
+		rows = append(rows, ConsentRow{ID: v.ID, UserID: v.UserID, ClientID: v.ClientID, Scopes: v.Scopes})
 	}
 	tableOK(c, total, rows)
 }
 
 // DeleteConsent 删除同意记录。
 // DELETE /admin/api/consents/:id
+// @Summary      删除同意记录
+// @Tags         Admin
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        id   path   string true "同意记录ID"
+// @Success      200  {object} map[string]any
+// @Failure      500  {object} map[string]any
+// @Router       /admin/api/consents/{id} [delete]
 func DeleteConsent(c *gin.Context) {
 	id := c.Param("id")
 	if err := db.G().WithContext(c.Request.Context()).Delete(&entity.Consent{}, id).Error; err != nil {
@@ -456,6 +617,13 @@ func DeleteConsent(c *gin.Context) {
 // JWKS
 // ListJWKS 列出 JWK（kid/alg/status）。
 // GET /admin/api/jwks
+// @Summary      列出 JWK
+// @Tags         Admin
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Success      200 {object} map[string]any
+// @Router       /admin/api/jwks [get]
 func ListJWKS(c *gin.Context) {
 	var list []entity.JWKKey
 	db.G().WithContext(c.Request.Context()).Order("status DESC, not_before DESC").Find(&list)
@@ -468,6 +636,15 @@ func ListJWKS(c *gin.Context) {
 
 // RotateJWK 轮换 JWK。
 // POST /admin/api/jwks/rotate?alg=ALL|RS256|ES256
+// @Summary      轮换 JWK
+// @Tags         Admin
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        alg query string false "算法：ALL|RS256|ES256"
+// @Success      200 {object} map[string]any
+// @Failure      500 {object} map[string]any
+// @Router       /admin/api/jwks/rotate [post]
 func RotateJWK(c *gin.Context) {
 	alg := c.Query("alg")
 	ctx := context.Background()
@@ -493,12 +670,30 @@ func RotateJWK(c *gin.Context) {
 // Health/admin ping
 // Ping 健康探测。
 // GET /admin/api/ping
+// @Summary      管理端 ping
+// @Tags         Admin
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Success      200 {object} map[string]any
+// @Router       /admin/api/ping [get]
 func Ping(c *gin.Context) { ok(c, gin.H{"time": time.Now().UTC().Format(time.RFC3339)}) }
 
 // Token Revocation APIs
 // POST /admin/api/tokens/revoke_access {access_token}
 // RevokeAccess 撤销 Access Token（解析 jti 并写入黑名单）。
 // POST /admin/api/tokens/revoke_access  body: {access_token}
+// @Summary      撤销 Access Token
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        body body   admin.RevokeAccessReq true "Access Token"
+// @Success      200  {object} map[string]any
+// @Failure      400  {object} map[string]any
+// @Failure      500  {object} map[string]any
+// @Router       /admin/api/tokens/revoke_access [post]
 func RevokeAccess(c *gin.Context) {
 	var body struct {
 		AccessToken string `json:"access_token"`
@@ -518,6 +713,17 @@ func RevokeAccess(c *gin.Context) {
 // POST /admin/api/tokens/revoke_jti {jti, ttl_seconds}
 // RevokeJTI 按 jti 撤销。
 // POST /admin/api/tokens/revoke_jti  body: {jti, ttl_seconds}
+// @Summary      按 jti 撤销
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        body body   admin.RevokeJTIReq true "撤销参数"
+// @Success      200  {object} map[string]any
+// @Failure      400  {object} map[string]any
+// @Failure      500  {object} map[string]any
+// @Router       /admin/api/tokens/revoke_jti [post]
 func RevokeJTI(c *gin.Context) {
 	var body struct {
 		JTI string `json:"jti"`
@@ -541,6 +747,15 @@ func RevokeJTI(c *gin.Context) {
 // GET /admin/api/tokens/status?jti=
 // TokenStatus 查询 jti 撤销状态。
 // GET /admin/api/tokens/status?jti=
+// @Summary      查询 jti 撤销状态
+// @Tags         Admin
+// @Produce      json
+// @Security     Session
+// @Security     CSRF
+// @Param        jti query string true "JWT ID"
+// @Success      200 {object} map[string]any
+// @Failure      400 {object} map[string]any
+// @Router       /admin/api/tokens/status [get]
 func TokenStatus(c *gin.Context) {
 	jti := c.Query("jti")
 	if jti == "" {

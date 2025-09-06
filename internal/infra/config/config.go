@@ -13,6 +13,12 @@ type ServerCfg struct {
 	CookieDomain  string `mapstructure:"cookie_domain"`
 	SecureCookies bool   `mapstructure:"secure_cookies"`
 	AutoMigrate   bool   `mapstructure:"auto_migrate"`
+	Swagger       bool   `mapstructure:"swagger"`
+	// SwaggerUIPath 为 Swagger UI 的路由前缀，如 "/swagger"，最终注册为 "/swagger/*any"。
+	SwaggerUIPath string `mapstructure:"swagger_ui_path"`
+	// SwaggerDocURL 为 Swagger JSON 文档地址，可为相对或绝对 URL。
+	// 留空时使用内置 docs 包提供的默认 "doc.json"。
+	SwaggerDocURL string `mapstructure:"swagger_doc_url"`
 }
 
 type DBCfg struct {

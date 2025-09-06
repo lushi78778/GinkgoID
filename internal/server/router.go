@@ -58,29 +58,16 @@ func NewRouter() *gin.Engine {
 	}
 
 	// basic health
-	r.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
+	r.GET("/healthz", healthz)
 	// Expose basic runtime/expvar metrics
-	r.GET("/debug/vars", gin.WrapH(expvar.Handler()))
+	r.GET("/debug/vars", debugVars)
 	// Minimal /metrics (Prometheus text format subset)
 	r.GET("/metrics", metrics)
-	r.GET("/readyz", func(c *gin.Context) {
-		type probe struct {
-			ok  bool
-			err string
-		}
-		out := gin.H{}
-		// DB
-		dberr := db.G().Exec("SELECT 1").Error
-		out["db"] = probe{ok: dberr == nil, err: errString(dberr)}
-		// Redis (optional)
-		if cache := icache.R(); cache != nil {
-			rerr := cache.Ping(context.Background()).Err()
-			out["redis"] = probe{ok: rerr == nil, err: errString(rerr)}
-		} else {
-			out["redis"] = probe{ok: true, err: "disabled"}
-		}
-		c.JSON(http.StatusOK, out)
-	})
+
+	// Swagger（按需构建）
+	// 若使用 -tags swagger 构建，将自动注册 /swagger/*any 路由
+	SetupSwagger(r)
+	r.GET("/readyz", readyz)
 
 	// discovery：公开 OIDC 发现文档
 	r.GET("/.well-known/openid-configuration", discovery)
@@ -164,6 +151,12 @@ func NewRouter() *gin.Engine {
 }
 
 // discovery 输出 OIDC 发现文档。issuer/端点均基于配置的 oidc.issuer 拼装。
+// @Summary      OIDC Discovery 文档
+// @Description  返回 OpenID Provider 的发现文档（.well-known/openid-configuration）
+// @Tags         OIDC
+// @Produce      json
+// @Success      200 {object} map[string]any
+// @Router       /.well-known/openid-configuration [get]
 func discovery(c *gin.Context) {
 	cfg := config.C()
 	issuer := cfg.OIDC.Issuer
@@ -195,6 +188,13 @@ func discovery(c *gin.Context) {
 }
 
 // jwks 返回当前激活与灰度中的公钥列表（用于 RP 验签）。
+// @Summary      JWKS 公钥集
+// @Description  返回当前可用的 JWK 公钥列表
+// @Tags         OIDC
+// @Produce      json
+// @Success      200 {object} map[string]any
+// @Failure      500 {object} map[string]any
+// @Router       /jwks.json [get]
 func jwks(c *gin.Context) {
 	keys, err := jwk.JWKS(context.Background())
 	if err != nil {
@@ -205,6 +205,12 @@ func jwks(c *gin.Context) {
 }
 
 // metrics 暴露最小化 Prometheus 文本格式指标（无第三方依赖）。
+// @Summary      基础指标
+// @Description  以 Prometheus 文本格式暴露基础运行指标
+// @Tags         Public
+// @Produce      plain
+// @Success      200 {string} string "prometheus text"
+// @Router       /metrics [get]
 func metrics(c *gin.Context) {
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
@@ -234,6 +240,12 @@ func metrics(c *gin.Context) {
 }
 
 // docsPage 渲染项目的简版使用文档。
+// @Summary      文档页
+// @Description  渲染简单的服务说明页面
+// @Tags         Public
+// @Produce      html
+// @Success      200 {string} string "HTML"
+// @Router       /docs [get]
 func docsPage(c *gin.Context) {
 	cfg := config.C()
 	issuer := cfg.OIDC.Issuer
@@ -262,6 +274,13 @@ func errString(err error) string {
 }
 
 // getLogin 渲染登录页模板。
+// @Summary      登录页
+// @Description  渲染登录页面
+// @Tags         OIDC
+// @Produce      html
+// @Param        continue query string false "登录成功后的跳转"
+// @Success      200 {string} string "HTML"
+// @Router       /login [get]
 func getLogin(c *gin.Context) {
 	c.HTML(http.StatusOK, "login.html", gin.H{
 		"continue":    c.Query("continue"),
@@ -271,6 +290,19 @@ func getLogin(c *gin.Context) {
 }
 
 // getConsent 渲染同意页：当用户尚未针对客户端与所请求 scope 给出授权时触发。
+// @Summary      同意页
+// @Description  渲染授权同意页面
+// @Tags         OIDC
+// @Produce      html
+// @Param        client_id query string true "客户端ID"
+// @Param        redirect_uri query string true "回调地址"
+// @Param        scope query string true "请求的 scopes（空格分隔）"
+// @Param        state query string false "状态参数"
+// @Param        nonce query string false "ID Token nonce"
+// @Param        code_challenge query string true "PKCE code_challenge"
+// @Param        code_challenge_method query string true "PKCE 方法，S256"
+// @Success      200 {string} string "HTML"
+// @Router       /consent [get]
 func getConsent(c *gin.Context) {
 	ctx := context.Background()
 	clientID := c.Query("client_id")
@@ -320,6 +352,19 @@ func getConsent(c *gin.Context) {
 }
 
 // postLogin 处理登录表单提交，成功后建立会话并可按 continue 参数跳转。
+// @Summary      表单登录
+// @Description  用户名/密码登录。成功后设置会话 Cookie；若提供 continue 参数则 302 跳转，否则返回 JSON。
+// @Tags         OIDC
+// @Accept       application/x-www-form-urlencoded
+// @Produce      json
+// @Param        username  formData string true  "用户名"
+// @Param        password  formData string true  "密码"
+// @Param        continue  formData string false "登录成功后的跳转地址"
+// @Success      200 {object} map[string]any
+// @Success      302 {string} string "重定向至 continue"
+// @Failure      401 {object} map[string]any
+// @Failure      500 {object} map[string]any
+// @Router       /login [post]
 func postLogin(c *gin.Context) {
 	// Single scheme: application/x-www-form-urlencoded
 	username := c.PostForm("username")
@@ -362,6 +407,21 @@ func postLogin(c *gin.Context) {
 }
 
 // authorize 处理授权请求：参数校验 → 客户端/回调校验 → 登录/同意校验 → 签发授权码。
+// @Summary      授权端点
+// @Description  OIDC 授权端点（授权码 + PKCE），成功后 302 跳转携带 code
+// @Tags         OIDC
+// @Produce      json
+// @Param        response_type query string true  "仅支持 code"
+// @Param        client_id     query string true  "客户端ID"
+// @Param        redirect_uri  query string true  "回调地址（需预注册）"
+// @Param        scope         query string true  "openID 相关 scopes，如: openid profile email"
+// @Param        state         query string false "CSRF 防护/状态保持"
+// @Param        nonce         query string false "ID Token nonce"
+// @Param        code_challenge         query string true  "PKCE 值"
+// @Param        code_challenge_method  query string true  "S256"
+// @Success      302 {string} string "重定向至 redirect_uri，附带 code/state"
+// @Failure      400 {object} map[string]any
+// @Router       /authorize [get]
 func authorize(c *gin.Context) {
 	ctx := context.Background()
 	q := c.Request.URL.Query()
@@ -423,6 +483,22 @@ func authorize(c *gin.Context) {
 	issueCodeRedirect(c, ss, ap.ClientID, ap.RedirectURI, scopes, ap.Nonce, ap.CodeChallenge, ap.CodeChallengeMethod, ap.State)
 }
 
+// @Summary      令牌端点
+// @Description  使用授权码交换 Access Token 与 ID Token（需 PKCE）
+// @Tags         OIDC
+// @Accept       application/x-www-form-urlencoded
+// @Produce      json
+// @Param        grant_type     formData string true  "固定为 authorization_code"
+// @Param        code           formData string true  "授权码"
+// @Param        redirect_uri   formData string true  "回调地址"
+// @Param        client_id      formData string false "公有客户端在此携带"
+// @Param        client_secret  formData string false "机密客户端在此或 BasicAuth"
+// @Param        code_verifier  formData string true  "PKCE 校验值"
+// @Success      200 {object} map[string]any
+// @Failure      400 {object} map[string]any
+// @Failure      401 {object} map[string]any
+// @Failure      500 {object} map[string]any
+// @Router       /token [post]
 func token(c *gin.Context) {
 	// Ensure form is parsed before accessing PostForm
 	if err := c.Request.ParseForm(); err != nil {
@@ -502,6 +578,14 @@ func token(c *gin.Context) {
 }
 
 // userinfo 返回最小化用户信息，字段受 scope 控制。
+// @Summary      用户信息
+// @Description  使用 Bearer Access Token 获取用户信息（sub 必含，其它字段由 scope 决定）
+// @Tags         OIDC
+// @Produce      json
+// @Param        Authorization header string true "Bearer <access_token>"
+// @Success      200 {object} map[string]any
+// @Failure      401 {object} map[string]any
+// @Router       /userinfo [get]
 func userinfo(c *gin.Context) {
 	auth := c.GetHeader("Authorization")
 	if !strings.HasPrefix(strings.ToLower(auth), "bearer ") { // 必须携带 Bearer
@@ -540,6 +624,14 @@ func userinfo(c *gin.Context) {
 }
 
 // introspect 实现 OAuth 2.0 Token Introspection（RFC 7662）。
+// @Summary      令牌自省
+// @Description  RFC7662 自省端点，返回令牌是否有效等信息
+// @Tags         OIDC
+// @Accept       application/x-www-form-urlencoded
+// @Produce      json
+// @Param        token formData string true "待查询的令牌"
+// @Success      200 {object} map[string]any
+// @Router       /oauth2/introspect [post]
 func introspect(c *gin.Context) {
 	// client auth
 	clientID, clientSecret, _ := c.Request.BasicAuth()
@@ -607,6 +699,14 @@ func introspect(c *gin.Context) {
 }
 
 // revoke 实现 OAuth 2.0 Token Revocation（RFC 7009）。
+// @Summary      令牌撤销
+// @Description  RFC7009 撤销端点，支持 Access Token 撤销
+// @Tags         OIDC
+// @Accept       application/x-www-form-urlencoded
+// @Produce      json
+// @Param        token formData string true "待撤销的令牌"
+// @Success      200 {string} string ""
+// @Router       /oauth2/revoke [post]
 func revoke(c *gin.Context) {
 	// client auth
 	clientID, clientSecret, _ := c.Request.BasicAuth()
@@ -681,6 +781,15 @@ func returnErrorRedirect(c *gin.Context, redirectURI, errCode, desc, state strin
 }
 
 // logout 清除 OP 侧会话，可选校验 id_token_hint 并按白名单回跳。
+// @Summary      注销会话
+// @Description  清除 OP 会话并可按白名单回跳；兼容 OIDC RP 发起登出
+// @Tags         OIDC
+// @Produce      html
+// @Param        id_token_hint              query string false "RP 提供的 id_token"
+// @Param        post_logout_redirect_uri   query string false "白名单内回调地址"
+// @Param        state                      query string false "状态参数"
+// @Success      200 {string} string "HTML"
+// @Router       /logout [get]
 func logout(c *gin.Context) {
 	ctx := context.Background()
 	idToken := c.Query("id_token_hint")
@@ -810,6 +919,22 @@ func hidden(k, v string) string {
 }
 
 // postConsent 处理同意表单提交，保存/更新同意记录后直接签发授权码并回跳。
+// @Summary      同意提交
+// @Description  用户在同意页提交表单后保存同意记录并签发授权码
+// @Tags         OIDC
+// @Accept       application/x-www-form-urlencoded
+// @Produce      json
+// @Param        client_id               formData string true  "客户端ID"
+// @Param        redirect_uri            formData string true  "回调地址"
+// @Param        state                   formData string false "状态参数"
+// @Param        nonce                   formData string false "ID Token nonce"
+// @Param        scope                   formData string true  "请求的 scopes（空格分隔）"
+// @Param        code_challenge          formData string true  "PKCE code_challenge"
+// @Param        code_challenge_method   formData string true  "S256"
+// @Param        remember                formData string false "记住授权：1 表示记住"
+// @Param        sid                     formData string false "会话 ID（兜底，从 Cookie 读取）"
+// @Success      302 {string} string "重定向至 redirect_uri，附带 code/state"
+// @Router       /consent [post]
 func postConsent(c *gin.Context) {
 	ctx := context.Background()
 	clientID := c.PostForm("client_id")
@@ -837,4 +962,52 @@ func postConsent(c *gin.Context) {
 	scopes := strings.Fields(scope)
 	_ = consent.Save(ctx, ss.UserID, clientID, scopes, remember)
 	issueCodeRedirect(c, ss, clientID, redirectURI, scopes, nonce, codeChallenge, method, state)
+}
+
+// healthz 基础存活探针。
+// @Summary      健康检查
+// @Description  返回服务存活状态
+// @Tags         Public
+// @Produce      json
+// @Success      200 {object} map[string]string
+// @Router       /healthz [get]
+func healthz(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// debugVars 暴露 expvar 变量。
+// @Summary      调试变量
+// @Description  暴露 Go expvar 运行时变量（JSON）
+// @Tags         Public
+// @Produce      json
+// @Success      200 {object} map[string]any
+// @Router       /debug/vars [get]
+func debugVars(c *gin.Context) {
+	expvar.Handler().ServeHTTP(c.Writer, c.Request)
+}
+
+// readyz 依赖就绪探针：检查 DB 与 Redis。
+// @Summary      就绪检查
+// @Description  返回 DB 与 Redis 的就绪状态
+// @Tags         Public
+// @Produce      json
+// @Success      200 {object} map[string]any
+// @Router       /readyz [get]
+func readyz(c *gin.Context) {
+	type probe struct {
+		OK  bool   `json:"ok"`
+		Err string `json:"err"`
+	}
+	out := gin.H{}
+	// DB
+	dberr := db.G().Exec("SELECT 1").Error
+	out["db"] = probe{OK: dberr == nil, Err: errString(dberr)}
+	// Redis (optional)
+	if cache := icache.R(); cache != nil {
+		rerr := cache.Ping(context.Background()).Err()
+		out["redis"] = probe{OK: rerr == nil, Err: errString(rerr)}
+	} else {
+		out["redis"] = probe{OK: true, Err: "disabled"}
+	}
+	c.JSON(http.StatusOK, out)
 }

@@ -1,0 +1,1404 @@
+basePath: /
+definitions:
+  admin.ClientItem:
+    properties:
+      client_id:
+        type: string
+      name:
+        type: string
+      post_logout_uris:
+        type: string
+      redirect_uris:
+        type: string
+      scopes:
+        type: string
+      status:
+        type: integer
+    type: object
+  admin.ClientRow:
+    properties:
+      client_id:
+        description: |-
+          客户端 ID
+          example: demo-web
+        type: string
+      name:
+        description: |-
+          名称
+          example: Demo Web
+        type: string
+      status:
+        description: |-
+          状态（1 启用 / 0 停用）
+          example: 1
+        type: integer
+    type: object
+  admin.ClientStatusPatchReq:
+    properties:
+      status:
+        description: |-
+          状态（1 启用 / 0 停用）
+          example: 1
+        type: integer
+    type: object
+  admin.ClientsResponse:
+    properties:
+      code:
+        type: integer
+      data:
+        items:
+          $ref: '#/definitions/admin.ClientItem'
+        type: array
+      msg:
+        type: string
+      request_id:
+        type: string
+    type: object
+  admin.ConsentRow:
+    properties:
+      client_id:
+        description: 'example: demo-web'
+        type: string
+      id:
+        description: 'example: 9001'
+        type: integer
+      scopes:
+        description: 'example: ["openid","profile"]'
+        type: string
+      user_id:
+        description: 'example: 1001'
+        type: integer
+    type: object
+  admin.ConsentsResponse:
+    properties:
+      code:
+        type: integer
+      data:
+        items:
+          $ref: '#/definitions/admin.ConsentRow'
+        type: array
+      msg:
+        type: string
+      request_id:
+        type: string
+    type: object
+  admin.CreateUserReq:
+    properties:
+      email:
+        description: |-
+          邮箱（可选）
+          example: alice@example.com
+        type: string
+      email_verified:
+        description: |-
+          邮箱是否已验证（可选）
+          example: true
+        type: boolean
+      password:
+        description: |-
+          密码
+          example: Secret123!
+        type: string
+      role:
+        description: |-
+          角色（可选）
+          example: admin
+        type: string
+      username:
+        description: |-
+          用户名
+          example: alice
+        type: string
+    type: object
+  admin.PatchUserEmailReq:
+    properties:
+      email:
+        description: |-
+          邮箱
+          example: alice@example.com
+        type: string
+      email_verified:
+        description: |-
+          邮箱是否已验证（可选）
+          example: true
+        type: boolean
+    type: object
+  admin.PatchUserPasswordReq:
+    properties:
+      password:
+        description: |-
+          新密码
+          example: Secret123!
+        type: string
+    type: object
+  admin.PatchUserRoleReq:
+    properties:
+      role:
+        description: |-
+          角色
+          example: operator
+        type: string
+    type: object
+  admin.RevokeAccessReq:
+    properties:
+      access_token:
+        description: |-
+          Access Token
+          example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+    type: object
+  admin.RevokeJTIReq:
+    properties:
+      jti:
+        description: |-
+          JWT ID
+          example: 3c2e1f8a-9a50-4d9c-9b59-2b3f0baf7a2f
+        type: string
+      ttl_seconds:
+        description: |-
+          过期时间（秒）
+          example: 600
+        type: integer
+    type: object
+  admin.TableClientsResponse:
+    properties:
+      code:
+        description: |-
+          业务码：0 表示成功
+          example: 0
+        type: integer
+      count:
+        description: |-
+          记录总数
+          example: 42
+        type: integer
+      data:
+        description: 数据行
+        items:
+          $ref: '#/definitions/admin.ClientRow'
+        type: array
+      msg:
+        description: |-
+          消息
+          example: ok
+        type: string
+      request_id:
+        description: |-
+          请求 ID
+          example: 9P8sJ0n2qWfD
+        type: string
+    type: object
+  admin.TableConsentsResponse:
+    properties:
+      code:
+        type: integer
+      count:
+        type: integer
+      data:
+        items:
+          $ref: '#/definitions/admin.ConsentRow'
+        type: array
+      msg:
+        type: string
+      request_id:
+        type: string
+    type: object
+  admin.TableUsersResponse:
+    properties:
+      code:
+        type: integer
+      count:
+        type: integer
+      data:
+        items:
+          $ref: '#/definitions/admin.UserRow'
+        type: array
+      msg:
+        type: string
+      request_id:
+        type: string
+    type: object
+  admin.UpsertClientReq:
+    properties:
+      client_id:
+        type: string
+      name:
+        type: string
+      post_logout_uris:
+        items:
+          type: string
+        type: array
+      redirect_uris:
+        items:
+          type: string
+        type: array
+      scopes:
+        items:
+          type: string
+        type: array
+      secret:
+        type: string
+      status:
+        type: integer
+    type: object
+  admin.UserRow:
+    properties:
+      email:
+        description: 'example: alice@example.com'
+        type: string
+      email_verified:
+        description: 'example: true'
+        type: boolean
+      id:
+        description: 'example: 1001'
+        type: integer
+      role:
+        description: 'example: admin'
+        type: string
+      status:
+        description: 'example: 1'
+        type: integer
+      username:
+        description: 'example: alice'
+        type: string
+    type: object
+  admin.UsersResponse:
+    properties:
+      code:
+        type: integer
+      data:
+        items:
+          $ref: '#/definitions/admin.UserRow'
+        type: array
+      msg:
+        type: string
+      request_id:
+        type: string
+    type: object
+info:
+  contact:
+    name: GinkgoID
+  description: GinkgoID 提供的公开 OIDC 端点与管理后台 API。
+  title: GinkgoID OpenAPI
+  version: "1.0"
+paths:
+  /.well-known/openid-configuration:
+    get:
+      description: 返回 OpenID Provider 的发现文档（.well-known/openid-configuration）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: OIDC Discovery 文档
+      tags:
+      - OIDC
+  /admin/api/clients:
+    get:
+      description: 返回最多 1000 条客户端列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admin.ClientsResponse'
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 列出客户端
+      tags:
+      - Admin
+    post:
+      consumes:
+      - application/json
+      description: 创建新的 OAuth 客户端
+      parameters:
+      - description: 客户端信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.UpsertClientReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 创建客户端
+      tags:
+      - Admin
+  /admin/api/clients/{id}:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: client_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新信息（未提供的字段不变）
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.UpsertClientReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 更新客户端
+      tags:
+      - Admin
+  /admin/api/clients/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: client_id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 状态
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.ClientStatusPatchReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 启停客户端
+      tags:
+      - Admin
+  /admin/api/clients/table:
+    get:
+      description: 以 Layui 表格格式返回分页数据
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页大小(<=200)
+        in: query
+        name: limit
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admin.TableClientsResponse'
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 客户端表格
+      tags:
+      - Admin
+  /admin/api/consents:
+    get:
+      parameters:
+      - description: 用户ID
+        in: query
+        name: user_id
+        type: string
+      - description: 客户端ID
+        in: query
+        name: client_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admin.ConsentsResponse'
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 列出同意记录
+      tags:
+      - Admin
+  /admin/api/consents/{id}:
+    delete:
+      parameters:
+      - description: 同意记录ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 删除同意记录
+      tags:
+      - Admin
+  /admin/api/consents/table:
+    get:
+      description: 以 Layui 表格格式返回分页数据
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页大小(<=200)
+        in: query
+        name: limit
+        type: integer
+      - description: 用户ID
+        in: query
+        name: user_id
+        type: string
+      - description: 客户端ID
+        in: query
+        name: client_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admin.TableConsentsResponse'
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 同意记录表格
+      tags:
+      - Admin
+  /admin/api/jwks:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 列出 JWK
+      tags:
+      - Admin
+  /admin/api/jwks/rotate:
+    post:
+      parameters:
+      - description: 算法：ALL|RS256|ES256
+        in: query
+        name: alg
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 轮换 JWK
+      tags:
+      - Admin
+  /admin/api/ping:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 管理端 ping
+      tags:
+      - Admin
+  /admin/api/tokens/revoke_access:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Access Token
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.RevokeAccessReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 撤销 Access Token
+      tags:
+      - Admin
+  /admin/api/tokens/revoke_jti:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 撤销参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.RevokeJTIReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 按 jti 撤销
+      tags:
+      - Admin
+  /admin/api/tokens/status:
+    get:
+      parameters:
+      - description: JWT ID
+        in: query
+        name: jti
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 查询 jti 撤销状态
+      tags:
+      - Admin
+  /admin/api/users:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admin.UsersResponse'
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 列出用户
+      tags:
+      - Admin
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 用户信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.CreateUserReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 创建用户
+      tags:
+      - Admin
+  /admin/api/users/{id}/email:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 邮箱信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.PatchUserEmailReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 设置用户邮箱
+      tags:
+      - Admin
+  /admin/api/users/{id}/password:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 新密码
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.PatchUserPasswordReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 重置用户口令
+      tags:
+      - Admin
+  /admin/api/users/{id}/role:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 角色
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.PatchUserRoleReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 设置用户角色
+      tags:
+      - Admin
+  /admin/api/users/{id}/sessions/revoke_all:
+    post:
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 撤销用户所有会话
+      tags:
+      - Admin
+  /admin/api/users/table:
+    get:
+      description: 以 Layui 表格格式返回分页数据
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页大小(<=200)
+        in: query
+        name: limit
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admin.TableUsersResponse'
+      security:
+      - Session: []
+      - CSRF: []
+      summary: 用户表格
+      tags:
+      - Admin
+  /authorize:
+    get:
+      description: OIDC 授权端点（授权码 + PKCE），成功后 302 跳转携带 code
+      parameters:
+      - description: 仅支持 code
+        in: query
+        name: response_type
+        required: true
+        type: string
+      - description: 客户端ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: 回调地址（需预注册）
+        in: query
+        name: redirect_uri
+        required: true
+        type: string
+      - description: 'openID 相关 scopes，如: openid profile email'
+        in: query
+        name: scope
+        required: true
+        type: string
+      - description: CSRF 防护/状态保持
+        in: query
+        name: state
+        type: string
+      - description: ID Token nonce
+        in: query
+        name: nonce
+        type: string
+      - description: PKCE 值
+        in: query
+        name: code_challenge
+        required: true
+        type: string
+      - description: S256
+        in: query
+        name: code_challenge_method
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "302":
+          description: 重定向至 redirect_uri，附带 code/state
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 授权端点
+      tags:
+      - OIDC
+  /consent:
+    get:
+      description: 渲染授权同意页面
+      parameters:
+      - description: 客户端ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: 回调地址
+        in: query
+        name: redirect_uri
+        required: true
+        type: string
+      - description: 请求的 scopes（空格分隔）
+        in: query
+        name: scope
+        required: true
+        type: string
+      - description: 状态参数
+        in: query
+        name: state
+        type: string
+      - description: ID Token nonce
+        in: query
+        name: nonce
+        type: string
+      - description: PKCE code_challenge
+        in: query
+        name: code_challenge
+        required: true
+        type: string
+      - description: PKCE 方法，S256
+        in: query
+        name: code_challenge_method
+        required: true
+        type: string
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML
+          schema:
+            type: string
+      summary: 同意页
+      tags:
+      - OIDC
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: 用户在同意页提交表单后保存同意记录并签发授权码
+      parameters:
+      - description: 客户端ID
+        in: formData
+        name: client_id
+        required: true
+        type: string
+      - description: 回调地址
+        in: formData
+        name: redirect_uri
+        required: true
+        type: string
+      - description: 状态参数
+        in: formData
+        name: state
+        type: string
+      - description: ID Token nonce
+        in: formData
+        name: nonce
+        type: string
+      - description: 请求的 scopes（空格分隔）
+        in: formData
+        name: scope
+        required: true
+        type: string
+      - description: PKCE code_challenge
+        in: formData
+        name: code_challenge
+        required: true
+        type: string
+      - description: S256
+        in: formData
+        name: code_challenge_method
+        required: true
+        type: string
+      - description: 记住授权：1 表示记住
+        in: formData
+        name: remember
+        type: string
+      - description: 会话 ID（兜底，从 Cookie 读取）
+        in: formData
+        name: sid
+        type: string
+      produces:
+      - application/json
+      responses:
+        "302":
+          description: 重定向至 redirect_uri，附带 code/state
+          schema:
+            type: string
+      summary: 同意提交
+      tags:
+      - OIDC
+  /debug/vars:
+    get:
+      description: 暴露 Go expvar 运行时变量（JSON）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 调试变量
+      tags:
+      - Public
+  /docs:
+    get:
+      description: 渲染简单的服务说明页面
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML
+          schema:
+            type: string
+      summary: 文档页
+      tags:
+      - Public
+  /healthz:
+    get:
+      description: 返回服务存活状态
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 健康检查
+      tags:
+      - Public
+  /jwks.json:
+    get:
+      description: 返回当前可用的 JWK 公钥列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: JWKS 公钥集
+      tags:
+      - OIDC
+  /login:
+    get:
+      description: 渲染登录页面
+      parameters:
+      - description: 登录成功后的跳转
+        in: query
+        name: continue
+        type: string
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML
+          schema:
+            type: string
+      summary: 登录页
+      tags:
+      - OIDC
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: 用户名/密码登录。成功后设置会话 Cookie；若提供 continue 参数则 302 跳转，否则返回 JSON。
+      parameters:
+      - description: 用户名
+        in: formData
+        name: username
+        required: true
+        type: string
+      - description: 密码
+        in: formData
+        name: password
+        required: true
+        type: string
+      - description: 登录成功后的跳转地址
+        in: formData
+        name: continue
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "302":
+          description: 重定向至 continue
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 表单登录
+      tags:
+      - OIDC
+  /logout:
+    get:
+      description: 清除 OP 会话并可按白名单回跳；兼容 OIDC RP 发起登出
+      parameters:
+      - description: RP 提供的 id_token
+        in: query
+        name: id_token_hint
+        type: string
+      - description: 白名单内回调地址
+        in: query
+        name: post_logout_redirect_uri
+        type: string
+      - description: 状态参数
+        in: query
+        name: state
+        type: string
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML
+          schema:
+            type: string
+      summary: 注销会话
+      tags:
+      - OIDC
+  /metrics:
+    get:
+      description: 以 Prometheus 文本格式暴露基础运行指标
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: prometheus text
+          schema:
+            type: string
+      summary: 基础指标
+      tags:
+      - Public
+  /oauth2/introspect:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: RFC7662 自省端点，返回令牌是否有效等信息
+      parameters:
+      - description: 待查询的令牌
+        in: formData
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 令牌自省
+      tags:
+      - OIDC
+  /oauth2/revoke:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: RFC7009 撤销端点，支持 Access Token 撤销
+      parameters:
+      - description: 待撤销的令牌
+        in: formData
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: 令牌撤销
+      tags:
+      - OIDC
+  /readyz:
+    get:
+      description: 返回 DB 与 Redis 的就绪状态
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 就绪检查
+      tags:
+      - Public
+  /token:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: 使用授权码交换 Access Token 与 ID Token（需 PKCE）
+      parameters:
+      - description: 固定为 authorization_code
+        in: formData
+        name: grant_type
+        required: true
+        type: string
+      - description: 授权码
+        in: formData
+        name: code
+        required: true
+        type: string
+      - description: 回调地址
+        in: formData
+        name: redirect_uri
+        required: true
+        type: string
+      - description: 公有客户端在此携带
+        in: formData
+        name: client_id
+        type: string
+      - description: 机密客户端在此或 BasicAuth
+        in: formData
+        name: client_secret
+        type: string
+      - description: PKCE 校验值
+        in: formData
+        name: code_verifier
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 令牌端点
+      tags:
+      - OIDC
+  /userinfo:
+    get:
+      description: 使用 Bearer Access Token 获取用户信息（sub 必含，其它字段由 scope 决定）
+      parameters:
+      - description: Bearer <access_token>
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 用户信息
+      tags:
+      - OIDC
+schemes:
+- http
+- https
+securityDefinitions:
+  CSRF:
+    in: header
+    name: X-CSRF-Token
+    type: apiKey
+  Session:
+    in: cookie
+    name: sid
+    type: apiKey
+swagger: "2.0"
