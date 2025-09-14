@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<!-- 前端通道注销页面：通过加载客户端的 frontchannel_logout_uri 列表以 iframe 方式完成登出通知。 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>正在退出…</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial; margin:2rem; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:12px; }
+    iframe { width:100%; height:80px; border:1px solid #eee; border-radius:6px; background:#fafafa; }
+    .msg { margin-bottom: 1rem; color:#333; }
+  </style>
+</head>
+<body>
+  <div class="msg">正在通知已登录的应用退出登录…</div>
+  <div class="grid">
+    {{ range .iframes }}
+      <iframe src="{{ . }}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin"></iframe>
+    {{ end }}
+  </div>
+  {{ if .redirect }}
+    <script>
+      setTimeout(function(){ window.location = "{{ .redirect }}"; }, 800);
+    </script>
+  {{ end }}
+</body>
+</html>

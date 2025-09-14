@@ -1,0 +1,769 @@
+basePath: /
+definitions:
+  oidc.Discovery:
+    properties:
+      acr_values_supported:
+        items:
+          type: string
+        type: array
+      authorization_endpoint:
+        type: string
+      backchannel_logout_session_supported:
+        type: boolean
+      backchannel_logout_supported:
+        type: boolean
+      check_session_iframe:
+        type: string
+      claims_parameter_supported:
+        type: boolean
+      claims_supported:
+        items:
+          type: string
+        type: array
+      code_challenge_methods_supported:
+        items:
+          type: string
+        type: array
+      end_session_endpoint:
+        type: string
+      frontchannel_logout_session_supported:
+        type: boolean
+      frontchannel_logout_supported:
+        type: boolean
+      grant_types_supported:
+        items:
+          type: string
+        type: array
+      id_token_signing_alg_values_supported:
+        items:
+          type: string
+        type: array
+      introspection_endpoint:
+        type: string
+      issuer:
+        type: string
+      jwks_uri:
+        type: string
+      prompt_values_supported:
+        items:
+          type: string
+        type: array
+      registration_endpoint:
+        type: string
+      request_parameter_supported:
+        type: boolean
+      request_uri_parameter_supported:
+        type: boolean
+      response_modes_supported:
+        items:
+          type: string
+        type: array
+      response_types_supported:
+        items:
+          type: string
+        type: array
+      revocation_endpoint:
+        type: string
+      scopes_supported:
+        items:
+          type: string
+        type: array
+      subject_types_supported:
+        items:
+          type: string
+        type: array
+      token_endpoint:
+        type: string
+      token_endpoint_auth_methods_supported:
+        items:
+          type: string
+        type: array
+      userinfo_endpoint:
+        type: string
+    type: object
+  services.RegisterRequest:
+    properties:
+      application_type:
+        type: string
+      backchannel_logout_uri:
+        type: string
+      client_name:
+        type: string
+      frontchannel_logout_uri:
+        type: string
+      grant_types:
+        items:
+          type: string
+        type: array
+      logo_uri:
+        type: string
+      post_logout_redirect_uris:
+        items:
+          type: string
+        type: array
+      redirect_uris:
+        items:
+          type: string
+        type: array
+      response_types:
+        items:
+          type: string
+        type: array
+      scope:
+        type: string
+      sector_identifier_uri:
+        type: string
+      subject_type:
+        description: 取值：public 或 pairwise
+        type: string
+      token_endpoint_auth_method:
+        type: string
+    type: object
+  services.RegisterResponse:
+    properties:
+      client_id:
+        type: string
+      client_id_issued_at:
+        type: integer
+      client_secret:
+        type: string
+      client_secret_expires_at:
+        type: integer
+      grant_types:
+        items:
+          type: string
+        type: array
+      redirect_uris:
+        items:
+          type: string
+        type: array
+      registration_access_token:
+        type: string
+      registration_client_uri:
+        type: string
+      token_endpoint_auth_method:
+        type: string
+    type: object
+info:
+  contact:
+    email: lushi78778@xray.top
+    name: GinkgoID Team
+    url: https://xray.top
+  description: 基于 Go(Gin) 的 OpenID Provider，实现 Discovery、JWKS、授权码+PKCE、Token、UserInfo、动态注册、注销、撤销、内省等接口。
+  title: GinkgoID OIDC OP API
+  version: 0.1.0
+paths:
+  /.well-known/oauth-authorization-server:
+    get:
+      description: 获取 OpenID Provider 的元数据文档
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/oidc.Discovery'
+      summary: OIDC Discovery
+      tags:
+      - .well-known
+  /.well-known/openid-configuration:
+    get:
+      description: 获取 OpenID Provider 的元数据文档
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/oidc.Discovery'
+      summary: OIDC Discovery
+      tags:
+      - .well-known
+  /authorize:
+    get:
+      description: 实现授权码 + PKCE 及可选 Hybrid 流程
+      parameters:
+      - description: code 或 code id_token
+        in: query
+        name: response_type
+        required: true
+        type: string
+      - description: 客户端 ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: 重定向 URI
+        in: query
+        name: redirect_uri
+        required: true
+        type: string
+      - description: openid 等空格分隔
+        in: query
+        name: scope
+        required: true
+        type: string
+      - description: 状态参数
+        in: query
+        name: state
+        type: string
+      - description: Hybrid 必需
+        in: query
+        name: nonce
+        type: string
+      - description: fragment|form_post|query
+        in: query
+        name: response_mode
+        type: string
+      - description: PKCE 挑战
+        in: query
+        name: code_challenge
+        type: string
+      - description: S256|plain
+        in: query
+        name: code_challenge_method
+        type: string
+      - description: none|login|consent
+        in: query
+        name: prompt
+        type: string
+      - description: ACR 要求
+        in: query
+        name: acr_values
+        type: string
+      produces:
+      - text/html
+      responses:
+        "302":
+          description: 重定向到 redirect_uri
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 授权端点（Authorization）
+      tags:
+      - oauth2
+  /check_session:
+    get:
+      description: 返回可被前端轮询的 iframe 页面，用于检测 OP 会话状态
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML
+          schema:
+            type: string
+      summary: 会话探测 Iframe（简化）
+      tags:
+      - session
+  /consent:
+    get:
+      description: 展示客户端名称与申请的 scope，供用户确认
+      parameters:
+      - description: 客户端 ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: 请求的 scope（空格分隔）
+        in: query
+        name: scope
+        required: true
+        type: string
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML
+          schema:
+            type: string
+      summary: 授权同意页
+      tags:
+      - consent
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: 用户同意后记录 consent 并重定向回 /authorize
+      parameters:
+      - description: approve 或 deny
+        in: formData
+        name: decision
+        required: true
+        type: string
+      responses:
+        "302":
+          description: 重定向至 /authorize
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 提交授权同意
+      tags:
+      - consent
+  /healthz:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 健康检查
+      tags:
+      - ops
+  /introspect:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: 返回访问令牌的有效性与基础元信息
+      parameters:
+      - description: 要内省的令牌
+        in: formData
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{ active: bool, ... }'
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BasicAuth: []
+      summary: 内省端点（Introspection）
+      tags:
+      - oauth2
+  /jwks.json:
+    get:
+      description: 返回用于验证 ID Token/Access Token 的公钥集合（JWK Set）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: JWKS JSON
+          schema:
+            type: string
+      summary: JWKS 公钥集合
+      tags:
+      - .well-known
+  /login:
+    get:
+      description: 渲染用户名密码登录页面（开发/示例用途）
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML
+          schema:
+            type: string
+      summary: 登录页
+      tags:
+      - auth
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: 使用表单提交用户名与密码，成功后创建会话并重定向回 /authorize
+      parameters:
+      - description: 用户名
+        in: formData
+        name: username
+        required: true
+        type: string
+      - description: 密码
+        in: formData
+        name: password
+        required: true
+        type: string
+      responses:
+        "302":
+          description: 重定向至 /authorize
+          schema:
+            type: string
+        "401":
+          description: 用户名或密码错误
+          schema:
+            type: string
+      summary: 提交登录
+      tags:
+      - auth
+  /logout:
+    get:
+      description: 清理 OP 会话并通知已登录 RP；可选重定向
+      parameters:
+      - description: RP 提供的 ID Token
+        in: query
+        name: id_token_hint
+        type: string
+      - description: 注销后重定向 URI
+        in: query
+        name: post_logout_redirect_uri
+        type: string
+      - description: 重定向回传状态
+        in: query
+        name: state
+        type: string
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML 或 302 重定向
+          schema:
+            type: string
+      summary: 注销（RP-Initiated Logout）
+      tags:
+      - logout
+  /metrics:
+    get:
+      description: 暴露 Prometheus 指标（text/plain; version=0.0.4）
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Prometheus 指标
+      tags:
+      - ops
+  /register:
+    delete:
+      description: 使用 registration_access_token 将客户端标记为未批准
+      parameters:
+      - description: 客户端 ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: Bearer {registration_access_token}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 禁用已注册客户端
+      tags:
+      - registration
+    get:
+      description: 使用 registration_access_token 返回客户端元数据
+      parameters:
+      - description: 客户端 ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: Bearer {registration_access_token}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 获取已注册客户端
+      tags:
+      - registration
+    post:
+      consumes:
+      - application/json
+      description: 按 OIDC Dynamic Client Registration 注册新客户端
+      parameters:
+      - description: 注册请求体
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/services.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/services.RegisterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 动态注册客户端
+      tags:
+      - registration
+    put:
+      consumes:
+      - application/json
+      description: 使用 registration_access_token 更新客户端元数据
+      parameters:
+      - description: 客户端 ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: Bearer {registration_access_token}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: 变更字段
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 更新已注册客户端
+      tags:
+      - registration
+  /register/rotate:
+    post:
+      description: 使用现有 registration_access_token 轮换获取新的 token
+      parameters:
+      - description: 客户端 ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: Bearer {registration_access_token}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{\"registration_access_token\":\"...\"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 轮换 Registration Access Token
+      tags:
+      - registration
+  /revoke:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: 撤销访问令牌或刷新令牌
+      parameters:
+      - description: 要撤销的令牌
+        in: formData
+        name: token
+        required: true
+        type: string
+      - description: access_token|refresh_token
+        in: formData
+        name: token_type_hint
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BasicAuth: []
+      summary: 吊销端点（Revocation）
+      tags:
+      - oauth2
+  /token:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: 交换授权码为令牌，或使用刷新令牌换新令牌
+      parameters:
+      - description: authorization_code 或 refresh_token
+        in: formData
+        name: grant_type
+        required: true
+        type: string
+      - description: 授权码（授权码模式）
+        in: formData
+        name: code
+        type: string
+      - description: 必须与授权时相同
+        in: formData
+        name: redirect_uri
+        type: string
+      - description: PKCE 校验所需
+        in: formData
+        name: code_verifier
+        type: string
+      - description: 刷新令牌（刷新模式）
+        in: formData
+        name: refresh_token
+        type: string
+      - description: 当未使用 Basic 时必填
+        in: formData
+        name: client_id
+        type: string
+      - description: 当未使用 Basic 时必填
+        in: formData
+        name: client_secret
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 包含 access_token/id_token/refresh_token
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BasicAuth: []
+      summary: 令牌端点（Token）
+      tags:
+      - oauth2
+  /userinfo:
+    get:
+      description: 使用 Access Token 获取用户 claims 信息
+      parameters:
+      - description: Bearer {access_token}
+        in: header
+        name: Authorization
+        type: string
+      - description: 当未设置 Authorization 时可使用
+        in: query
+        name: access_token
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 用户信息端点（UserInfo）
+      tags:
+      - oidc
+    post:
+      description: 使用 Access Token 获取用户 claims 信息
+      parameters:
+      - description: Bearer {access_token}
+        in: header
+        name: Authorization
+        type: string
+      - description: 当未设置 Authorization 时可使用
+        in: query
+        name: access_token
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 用户信息端点（UserInfo）
+      tags:
+      - oidc
+schemes:
+- http
+- https
+securityDefinitions:
+  BasicAuth:
+    type: basic
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -1,0 +1,1163 @@
+{
+    "schemes": [
+        "http",
+        "https"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "基于 Go(Gin) 的 OpenID Provider，实现 Discovery、JWKS、授权码+PKCE、Token、UserInfo、动态注册、注销、撤销、内省等接口。",
+        "title": "GinkgoID OIDC OP API",
+        "contact": {
+            "name": "GinkgoID Team",
+            "url": "https://xray.top",
+            "email": "lushi78778@xray.top"
+        },
+        "version": "0.1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/.well-known/oauth-authorization-server": {
+            "get": {
+                "description": "获取 OpenID Provider 的元数据文档",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    ".well-known"
+                ],
+                "summary": "OIDC Discovery",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/oidc.Discovery"
+                        }
+                    }
+                }
+            }
+        },
+        "/.well-known/openid-configuration": {
+            "get": {
+                "description": "获取 OpenID Provider 的元数据文档",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    ".well-known"
+                ],
+                "summary": "OIDC Discovery",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/oidc.Discovery"
+                        }
+                    }
+                }
+            }
+        },
+        "/authorize": {
+            "get": {
+                "description": "实现授权码 + PKCE 及可选 Hybrid 流程",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "oauth2"
+                ],
+                "summary": "授权端点（Authorization）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "code 或 code id_token",
+                        "name": "response_type",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "客户端 ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "重定向 URI",
+                        "name": "redirect_uri",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "openid 等空格分隔",
+                        "name": "scope",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "状态参数",
+                        "name": "state",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Hybrid 必需",
+                        "name": "nonce",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "fragment|form_post|query",
+                        "name": "response_mode",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE 挑战",
+                        "name": "code_challenge",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "S256|plain",
+                        "name": "code_challenge_method",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "none|login|consent",
+                        "name": "prompt",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "ACR 要求",
+                        "name": "acr_values",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "重定向到 redirect_uri",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/check_session": {
+            "get": {
+                "description": "返回可被前端轮询的 iframe 页面，用于检测 OP 会话状态",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "session"
+                ],
+                "summary": "会话探测 Iframe（简化）",
+                "responses": {
+                    "200": {
+                        "description": "HTML",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/consent": {
+            "get": {
+                "description": "展示客户端名称与申请的 scope，供用户确认",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "consent"
+                ],
+                "summary": "授权同意页",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "客户端 ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "请求的 scope（空格分隔）",
+                        "name": "scope",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTML",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "用户同意后记录 consent 并重定向回 /authorize",
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "tags": [
+                    "consent"
+                ],
+                "summary": "提交授权同意",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "approve 或 deny",
+                        "name": "decision",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "重定向至 /authorize",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/healthz": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ops"
+                ],
+                "summary": "健康检查",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/introspect": {
+            "post": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "返回访问令牌的有效性与基础元信息",
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "oauth2"
+                ],
+                "summary": "内省端点（Introspection）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "要内省的令牌",
+                        "name": "token",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{ active: bool, ... }",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/jwks.json": {
+            "get": {
+                "description": "返回用于验证 ID Token/Access Token 的公钥集合（JWK Set）",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    ".well-known"
+                ],
+                "summary": "JWKS 公钥集合",
+                "responses": {
+                    "200": {
+                        "description": "JWKS JSON",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/login": {
+            "get": {
+                "description": "渲染用户名密码登录页面（开发/示例用途）",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "登录页",
+                "responses": {
+                    "200": {
+                        "description": "HTML",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "使用表单提交用户名与密码，成功后创建会话并重定向回 /authorize",
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "提交登录",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用户名",
+                        "name": "username",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "密码",
+                        "name": "password",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "重定向至 /authorize",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "用户名或密码错误",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/logout": {
+            "get": {
+                "description": "清理 OP 会话并通知已登录 RP；可选重定向",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "logout"
+                ],
+                "summary": "注销（RP-Initiated Logout）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "RP 提供的 ID Token",
+                        "name": "id_token_hint",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "注销后重定向 URI",
+                        "name": "post_logout_redirect_uri",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "重定向回传状态",
+                        "name": "state",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTML 或 302 重定向",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/metrics": {
+            "get": {
+                "description": "暴露 Prometheus 指标（text/plain; version=0.0.4）",
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "ops"
+                ],
+                "summary": "Prometheus 指标",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/register": {
+            "get": {
+                "description": "使用 registration_access_token 返回客户端元数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "registration"
+                ],
+                "summary": "获取已注册客户端",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "客户端 ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer {registration_access_token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "使用 registration_access_token 更新客户端元数据",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "registration"
+                ],
+                "summary": "更新已注册客户端",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "客户端 ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer {registration_access_token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "变更字段",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "按 OIDC Dynamic Client Registration 注册新客户端",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "registration"
+                ],
+                "summary": "动态注册客户端",
+                "parameters": [
+                    {
+                        "description": "注册请求体",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/services.RegisterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/services.RegisterResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "使用 registration_access_token 将客户端标记为未批准",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "registration"
+                ],
+                "summary": "禁用已注册客户端",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "客户端 ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer {registration_access_token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/register/rotate": {
+            "post": {
+                "description": "使用现有 registration_access_token 轮换获取新的 token",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "registration"
+                ],
+                "summary": "轮换 Registration Access Token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "客户端 ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer {registration_access_token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{\\\"registration_access_token\\\":\\\"...\\\"}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/revoke": {
+            "post": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "撤销访问令牌或刷新令牌",
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "oauth2"
+                ],
+                "summary": "吊销端点（Revocation）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "要撤销的令牌",
+                        "name": "token",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "access_token|refresh_token",
+                        "name": "token_type_hint",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/token": {
+            "post": {
+                "security": [
+                    {
+                        "BasicAuth": []
+                    }
+                ],
+                "description": "交换授权码为令牌，或使用刷新令牌换新令牌",
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "oauth2"
+                ],
+                "summary": "令牌端点（Token）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "authorization_code 或 refresh_token",
+                        "name": "grant_type",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "授权码（授权码模式）",
+                        "name": "code",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "必须与授权时相同",
+                        "name": "redirect_uri",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE 校验所需",
+                        "name": "code_verifier",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "刷新令牌（刷新模式）",
+                        "name": "refresh_token",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "当未使用 Basic 时必填",
+                        "name": "client_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "当未使用 Basic 时必填",
+                        "name": "client_secret",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "包含 access_token/id_token/refresh_token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/userinfo": {
+            "get": {
+                "description": "使用 Access Token 获取用户 claims 信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "oidc"
+                ],
+                "summary": "用户信息端点（UserInfo）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer {access_token}",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "当未设置 Authorization 时可使用",
+                        "name": "access_token",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "使用 Access Token 获取用户 claims 信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "oidc"
+                ],
+                "summary": "用户信息端点（UserInfo）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer {access_token}",
+                        "name": "Authorization",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "当未设置 Authorization 时可使用",
+                        "name": "access_token",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "oidc.Discovery": {
+            "type": "object",
+            "properties": {
+                "acr_values_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "authorization_endpoint": {
+                    "type": "string"
+                },
+                "backchannel_logout_session_supported": {
+                    "type": "boolean"
+                },
+                "backchannel_logout_supported": {
+                    "type": "boolean"
+                },
+                "check_session_iframe": {
+                    "type": "string"
+                },
+                "claims_parameter_supported": {
+                    "type": "boolean"
+                },
+                "claims_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "code_challenge_methods_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "end_session_endpoint": {
+                    "type": "string"
+                },
+                "frontchannel_logout_session_supported": {
+                    "type": "boolean"
+                },
+                "frontchannel_logout_supported": {
+                    "type": "boolean"
+                },
+                "grant_types_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id_token_signing_alg_values_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "introspection_endpoint": {
+                    "type": "string"
+                },
+                "issuer": {
+                    "type": "string"
+                },
+                "jwks_uri": {
+                    "type": "string"
+                },
+                "prompt_values_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "registration_endpoint": {
+                    "type": "string"
+                },
+                "request_parameter_supported": {
+                    "type": "boolean"
+                },
+                "request_uri_parameter_supported": {
+                    "type": "boolean"
+                },
+                "response_modes_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "response_types_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "revocation_endpoint": {
+                    "type": "string"
+                },
+                "scopes_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "subject_types_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "token_endpoint": {
+                    "type": "string"
+                },
+                "token_endpoint_auth_methods_supported": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "userinfo_endpoint": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.RegisterRequest": {
+            "type": "object",
+            "properties": {
+                "application_type": {
+                    "type": "string"
+                },
+                "backchannel_logout_uri": {
+                    "type": "string"
+                },
+                "client_name": {
+                    "type": "string"
+                },
+                "frontchannel_logout_uri": {
+                    "type": "string"
+                },
+                "grant_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "logo_uri": {
+                    "type": "string"
+                },
+                "post_logout_redirect_uris": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "redirect_uris": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "response_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "sector_identifier_uri": {
+                    "type": "string"
+                },
+                "subject_type": {
+                    "description": "取值：public 或 pairwise",
+                    "type": "string"
+                },
+                "token_endpoint_auth_method": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.RegisterResponse": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string"
+                },
+                "client_id_issued_at": {
+                    "type": "integer"
+                },
+                "client_secret": {
+                    "type": "string"
+                },
+                "client_secret_expires_at": {
+                    "type": "integer"
+                },
+                "grant_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "redirect_uris": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "registration_access_token": {
+                    "type": "string"
+                },
+                "registration_client_uri": {
+                    "type": "string"
+                },
+                "token_endpoint_auth_method": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BasicAuth": {
+            "type": "basic"
+        },
+        "BearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

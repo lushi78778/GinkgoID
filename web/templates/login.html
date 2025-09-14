@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<!-- 登录页面模板：用于收集用户名与密码。表单会通过隐藏字段保留原始 /authorize 参数，便于登录成功后回跳。 -->
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>登录 - OP</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial; margin: 2rem; }
+        .box { max-width: 420px; margin: auto; border: 1px solid #ddd; padding: 1.5rem; border-radius: 8px; }
+        label { display:block; margin-top: .5rem; }
+        input[type=text], input[type=password] { width: 100%; padding: .5rem; }
+        button { margin-top: 1rem; padding: .6rem 1rem; }
+        .error { color: #b00; }
+    </style>
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="Content-Security-Policy" content="frame-ancestors 'none'">
+    <meta http-equiv="Referrer-Policy" content="no-referrer">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    <meta name="robots" content="noindex,nofollow">
+    <meta http-equiv="Cache-Control" content="no-store">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <script>/* no JS needed */</script>
+    <style>/* minimal */</style>
+    <meta name="color-scheme" content="light dark">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="referrer" content="no-referrer">
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()">
+    <meta name="csrf-token" content="{{ .csrf }}">
+    <meta name="op" content="login">
+    <meta name="version" content="0.1.0">
+    <meta name="description" content="OP 登录">
+    <meta name="keywords" content="OIDC,Login">
+</head>
+<body>
+<div class="box">
+    <h2>登录</h2>
+    {{ if .error }}<p class="error">{{ .error }}</p>{{ end }}
+    <form method="post" action="/login">
+        <!-- 保留原始 authorize 请求参数（不包含凭据字段） -->
+        {{ range $key, $vals := .params }}
+            {{ if and (ne $key "username") (ne $key "password") }}
+                {{ range $vals }}
+                    <input type="hidden" name="{{ $key }}" value="{{ . }}" />
+                {{ end }}
+            {{ end }}
+        {{ end }}
+        <label>用户名</label>
+        <input type="text" name="username" autocomplete="username" value="{{ with index .params "username" }}{{ index . 0 }}{{ else }}{{ with index .params "login_hint" }}{{ index . 0 }}{{ end }}{{ end }}">
+        <label>密码</label>
+        <input type="password" name="password" autocomplete="current-password">
+        <button type="submit">登录</button>
+    </form>
+</div>
+</body>
+</html>

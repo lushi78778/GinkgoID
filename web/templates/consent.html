@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<!-- 授权同意页面模板：展示客户端名称与申请的权限，用户可选择同意或拒绝。 -->
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>授权同意 - OP</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial; margin: 2rem; }
+        .box { max-width: 520px; margin: auto; border: 1px solid #ddd; padding: 1.5rem; border-radius: 8px; }
+        .scopes { margin: .5rem 0; }
+        button { margin-right: .5rem; padding: .6rem 1rem; }
+        .client { color: #333; }
+    </style>
+</head>
+<body>
+<div class="box">
+    <h2>授权请求</h2>
+    <p class="client">应用「{{ .client_name }}」请求访问：</p>
+    <ul class="scopes">
+        {{ range .scopes }}<li>{{ . }}</li>{{ end }}
+    </ul>
+    <form method="post" action="/consent">
+        {{ range $key, $vals := .params }}
+            {{ range $vals }}
+                <input type="hidden" name="{{ $key }}" value="{{ . }}" />
+            {{ end }}
+        {{ end }}
+        <button type="submit" name="decision" value="approve">同意</button>
+        <button type="submit" name="decision" value="deny">拒绝</button>
+    </form>
+</div>
+</body>
+</html>

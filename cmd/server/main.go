@@ -1,0 +1,149 @@
+package main
+
+// @title           GinkgoID OIDC OP API
+// @version         0.1.0
+// @description     基于 Go(Gin) 的 OpenID Provider，实现 Discovery、JWKS、授权码+PKCE、Token、UserInfo、动态注册、注销、撤销、内省等接口。
+// @contact.name    GinkgoID Team
+// @contact.url     https://xray.top
+// @contact.email   lushi78778@xray.top
+// @schemes         http https
+// @BasePath        /
+// @securityDefinitions.basic BasicAuth
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+
+import (
+    "context"
+    "net/http"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
+
+    "github.com/gin-gonic/gin"
+    log "github.com/sirupsen/logrus"
+    
+
+    "ginkgoid/internal/config"
+    "ginkgoid/internal/handlers"
+    "ginkgoid/internal/metrics"
+    "ginkgoid/internal/middlewares"
+    "ginkgoid/internal/services"
+    "ginkgoid/internal/storage"
+
+    
+)
+
+// main 为 OP 服务入口：加载配置、初始化日志/存储/服务、注册路由并启动 HTTP 服务。
+func main() {
+	// 配置结构化日志格式
+	log.SetFormatter(&log.JSONFormatter{TimestampFormat: time.RFC3339Nano})
+	log.SetOutput(os.Stdout)
+	log.SetLevel(log.InfoLevel)
+
+	// 加载配置（以配置文件为主，配合内置默认值）
+	cfg := config.Load()
+	log.WithFields(log.Fields{
+		"env":           cfg.Env,
+		"http_addr":     cfg.HTTPAddr,
+		"mysql_dsn":     cfg.MySQL.DSNMasked(),
+		"redis_addr":    cfg.Redis.Addr,
+		"issuer":        cfg.Issuer,
+		"cors_userinfo": cfg.CORS.EnableUserInfo,
+	}).Info("configuration loaded")
+
+	// 初始化存储（MySQL + Redis）
+	db, err := storage.InitMySQL(cfg)
+	if err != nil {
+		log.WithError(err).Fatal("failed to connect mysql")
+	}
+	defer storage.CloseMySQL(db)
+
+	rdb, err := storage.InitRedis(cfg)
+	if err != nil {
+		log.WithError(err).Fatal("failed to connect redis")
+	}
+	defer func() { _ = rdb.Close() }()
+
+	// 初始化核心服务
+	keySvc := services.NewKeyService(db, cfg)
+	if err := keySvc.EnsureActiveKey(context.Background()); err != nil {
+		log.WithError(err).Fatal("ensure active signing key")
+	}
+    clientSvc := services.NewClientService(db, cfg)
+    userSvc := services.NewUserService(db)
+    consentSvc := services.NewConsentService(db)
+    sessionSvc := services.NewSessionService(rdb, cfg)
+    tokenSvc := services.NewTokenService(cfg, keySvc)
+    codeSvc := services.NewCodeService(rdb, cfg)
+    refreshSvc := services.NewRefreshService(rdb, cfg)
+    revokeSvc := services.NewRevocationService(rdb)
+    logSvc := services.NewLogService(db)
+    tokenRepo := services.NewTokenRepo(db)
+
+	// HTTP 路由与中间件
+	if cfg.Env == "prod" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+	router := gin.New()
+    router.Use(gin.Recovery())
+    router.Use(middlewares.RequestLogger())
+    router.Use(middlewares.SecurityHeaders(cfg))
+    router.Use(metrics.Handler())
+
+    // 装载 HTTP 处理器
+    h := handlers.New(
+        cfg, keySvc, clientSvc, userSvc, sessionSvc, tokenSvc, codeSvc, consentSvc, refreshSvc, revokeSvc, logSvc, tokenRepo, rdb,
+    )
+    h.RegisterRoutes(router)
+    // OpenAPI 文档（Stoplight Elements）与静态规范（受配置 docs.enable 控制）
+    if cfg.Docs.Enable {
+        router.GET("/openapi.json", func(c *gin.Context) {
+            if p := firstExisting(cfg.Docs.SpecPath, "docs/swagger.json", "../docs/swagger.json", "../../docs/swagger.json"); p != "" {
+                c.File(p)
+                return
+            }
+            c.String(404, "openapi spec not found")
+        })
+        route := cfg.Docs.Route
+        if route == "" { route = "/docs" }
+        router.GET(route, func(c *gin.Context) {
+            if p := firstExisting(cfg.Docs.PagePath, "web/stoplight.html", "../web/stoplight.html", "../../web/stoplight.html"); p != "" {
+                c.File(p)
+                return
+            }
+            c.String(404, "docs page not found")
+        })
+    }
+
+	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: router}
+	go func() {
+		log.WithField("addr", cfg.HTTPAddr).Info("starting http server")
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.WithError(err).Fatal("listen")
+		}
+	}()
+
+    // 优雅退出
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	<-stop
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.WithError(err).Error("server shutdown")
+	} else {
+		log.Info("server stopped")
+	}
+}
+
+// firstExisting 在当前进程工作目录下按顺序查找首个存在的文件。
+func firstExisting(paths ...string) string {
+    for _, p := range paths {
+        if p == "" { continue }
+        if _, err := os.Stat(p); err == nil { return p }
+    }
+    return ""
+}

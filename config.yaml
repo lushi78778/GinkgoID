@@ -1,0 +1,97 @@
+## 运行环境：dev / prod
+env: dev
+
+## HTTP 服务监听地址
+http_addr: ":8080"
+
+## Issuer：对外暴露的 OP 基础地址（建议使用 https）
+issuer: "http://127.0.0.1:8080"
+
+## OpenAPI 文档（Stoplight Elements）
+docs:
+  enable: true           # 是否启用内置文档页面
+  route: "/docs"         # 文档访问路由
+  spec_path: docs/swagger.json    # OpenAPI 规范文件路径
+  page_path: web/stoplight.html   # Stoplight Elements HTML 文件
+
+mysql:
+  ## MySQL 主机与端口
+  host: 127.0.0.1
+  port: 3306
+  ## 账号与密码（生产务必修改）
+  user: root
+  password: 123456
+  ## 数据库名
+  db: ginkgoid
+  ## 连接参数（保持 parseTime/utf8mb4）
+  params: parseTime=true&loc=Local&charset=utf8mb4,utf8
+
+redis:
+  ## Redis 地址与 DB 库号
+  addr: 127.0.0.1:6379
+  db: 0
+  ## 密码（如无可留空）
+  password: ""
+
+crypto:
+  ## ID Token/Access Token 签名算法：RS256 或 ES256
+  id_token_alg: RS256
+
+token:
+  ## 访问令牌有效期
+  access_token_ttl: 1h
+  ## 刷新令牌有效期（offline_access 时返回）
+  refresh_token_ttl: 720h
+  ## 授权码有效期（短有效）
+  code_ttl: 30s
+  ## 授权码长度（URL 安全字符集 [A-Za-z0-9-_]）
+  code_length: 32
+  ## 注册访问令牌（registration_access_token）有效期
+  registration_pat_ttl: 24h
+  ## 是否强制 PKCE S256（建议 true）
+  require_pkce_s256: true
+
+session:
+  ## OP 会话 Cookie 名称与属性
+  cookie_name: op_session
+  cookie_domain: ""
+  cookie_secure: false   # 生产建议 true（HTTPS）
+  cookie_samesite: lax   # lax/strict/none
+  ## 会话存活时间
+  ttl: 24h
+
+pairwise:
+  ## 是否开启 pairwise subject
+  enable: true
+  ## 生成 pairwise sub 的全局盐值（务必保密并固定）
+  salt: dev-pairwise-salt-change-me
+
+cors:
+  ## 是否为 /userinfo 启用 CORS（一般后端调用无需开启）
+  enable_userinfo: false
+  ## 允许的跨域来源（启用时生效）
+  allowed_origins: []
+
+registration:
+  ## 是否需要审批（true 时新注册客户端默认不可用）
+  require_approval: false
+  ## 初始访问令牌：非空时，调用 POST /register 必须携带 Authorization: Bearer <此值>
+  initial_access_token: ""
+  ## sector_identifier_uri 校验超时
+  sector_timeout: 3s
+  ## 是否允许 http://localhost 作为 sector_identifier_uri（开发便捷）
+  allow_insecure_local_http: true
+
+limits:
+  ## 限流：每分钟登录次数/IP
+  login_per_minute: 10
+  ## 限流：每分钟令牌请求数/客户端
+  token_per_minute: 60
+  ## 限流窗口
+  window: 1m
+
+security:
+  hsts:
+    enabled: true
+    max_age: 31536000       # 秒
+    include_subdomains: true

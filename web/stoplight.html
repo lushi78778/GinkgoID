@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>API 文档 · Stoplight Elements</title>
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <style>
+      html, body { height: 100%; margin: 0; }
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif; }
+      .container { height: 100%; }
+    </style>
+    <!-- Stoplight Elements web components (via CDN) -->
+    <link rel="stylesheet" href="https://unpkg.com/@stoplight/elements/styles.min.css" />
+    <script src="https://unpkg.com/@stoplight/elements/web-components.min.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <!--
+        Elements API 配置：
+        - apiDescriptionUrl 指向后端暴露的 OpenAPI 文档（JSON/YAML）。
+        - router 使用 hash，避免与后端路由冲突。
+        - layout=sidebar 随项目喜好可改为 stacked。
+        - hideTryIt 可按需移除以开启在线调试。
+      -->
+      <elements-api
+        apiDescriptionUrl="/openapi.json"
+        router="hash"
+        layout="sidebar"
+        hideSchemas="false"
+        hideExport="false"
+        tryItCredentialsPolicy="omit"
+        tryItCorsProxy=""
+        logo=""
+        
+      ></elements-api>
+    </div>
+  </body>
+  </html>
+
