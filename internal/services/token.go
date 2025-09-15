@@ -1,17 +1,17 @@
 package services
 
 import (
-    "context"
-    "crypto/ecdsa"
-    "crypto/rsa"
-    "crypto/x509"
-    "encoding/pem"
-    "errors"
+	"context"
+	"crypto/ecdsa"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 
-    "time"
+	"time"
 
-    jwt "github.com/golang-jwt/jwt/v5"
-    "github.com/google/uuid"
+	jwt "github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 
 	"ginkgoid/internal/config"
 	"ginkgoid/internal/storage"
@@ -33,40 +33,40 @@ func (s *TokenService) BuildAccessTokenJWT(clientID string, userID uint64, subje
 	now := time.Now()
 	exp := now.Add(s.cfg.Token.AccessTokenTTL)
 	rec, err := s.keys.ActiveKey(context.Background())
-    if err != nil {
-        return "", time.Time{}, "", err
-    }
+	if err != nil {
+		return "", time.Time{}, "", err
+	}
 
-    jti := uuid.NewString()
-    claims := jwt.MapClaims{
-        "iss":       s.cfg.Issuer,
-        "sub":       subject,
-        "aud":       clientID,
-        "iat":       now.Unix(),
-        "exp":       exp.Unix(),
-        "scope":     scope,
-        "sid":       sid,
-        "client_id": clientID,
-        "uid":       userID,
-        "jti":       jti,
-    }
+	jti := uuid.NewString()
+	claims := jwt.MapClaims{
+		"iss":       s.cfg.Issuer,
+		"sub":       subject,
+		"aud":       clientID,
+		"iat":       now.Unix(),
+		"exp":       exp.Unix(),
+		"scope":     scope,
+		"sid":       sid,
+		"client_id": clientID,
+		"uid":       userID,
+		"jti":       jti,
+	}
 	token := jwt.NewWithClaims(jwt.GetSigningMethod(rec.Alg), claims)
 	token.Header["kid"] = rec.Kid
-    signed, err := token.SignedString(signingKeyFromRecord(rec))
-    if err != nil {
-        return "", time.Time{}, "", err
-    }
-    return signed, exp, jti, nil
+	signed, err := token.SignedString(signingKeyFromRecord(rec))
+	if err != nil {
+		return "", time.Time{}, "", err
+	}
+	return signed, exp, jti, nil
 }
 
 // BuildIDToken 签发 ID Token（支持 nonce、acr、at_hash 等可选声明）。
 func (s *TokenService) BuildIDToken(clientID, subject, nonce, acr, atHash string, authTime time.Time, extra map[string]interface{}) (string, error) {
-    now := time.Now()
-    exp := now.Add(s.cfg.Token.AccessTokenTTL) // 与 AT 对齐（也可按需设置更短）
-    rec, err := s.keys.ActiveKey(context.Background())
-    if err != nil {
-        return "", err
-    }
+	now := time.Now()
+	exp := now.Add(s.cfg.Token.AccessTokenTTL) // 与 AT 对齐（也可按需设置更短）
+	rec, err := s.keys.ActiveKey(context.Background())
+	if err != nil {
+		return "", err
+	}
 
 	claims := jwt.MapClaims{
 		"iss":       s.cfg.Issuer,
@@ -82,15 +82,15 @@ func (s *TokenService) BuildIDToken(clientID, subject, nonce, acr, atHash string
 	if acr != "" {
 		claims["acr"] = acr
 	}
-    if atHash != "" {
-        claims["at_hash"] = atHash
-    }
-    for k, v := range extra {
-        // 不覆盖保留字段
-        if _, exists := claims[k]; !exists {
-            claims[k] = v
-        }
-    }
+	if atHash != "" {
+		claims["at_hash"] = atHash
+	}
+	for k, v := range extra {
+		// 不覆盖保留字段
+		if _, exists := claims[k]; !exists {
+			claims[k] = v
+		}
+	}
 	token := jwt.NewWithClaims(jwt.GetSigningMethod(rec.Alg), claims)
 	token.Header["kid"] = rec.Kid
 	signed, err := token.SignedString(signingKeyFromRecord(rec))
@@ -103,23 +103,27 @@ func (s *TokenService) BuildIDToken(clientID, subject, nonce, acr, atHash string
 // BuildLogoutToken 生成后端通道注销（Back-Channel Logout）所需的 Logout Token（JWT）。
 // 包含 iss、（可选）sub、aud（client_id）、iat、events、sid 等声明。
 func (s *TokenService) BuildLogoutToken(clientID, subject, sid string) (string, error) {
-    now := time.Now()
-    rec, err := s.keys.ActiveKey(context.Background())
-    if err != nil { return "", err }
-    claims := jwt.MapClaims{
-        "iss": s.cfg.Issuer,
-        "aud": clientID,
-        "iat": now.Unix(),
-        "jti": uuid.NewString(),
-        "events": map[string]any{
-            "http://schemas.openid.net/event/backchannel-logout": map[string]any{},
-        },
-        "sid": sid,
-    }
-    if subject != "" { claims["sub"] = subject }
-    token := jwt.NewWithClaims(jwt.GetSigningMethod(rec.Alg), claims)
-    token.Header["kid"] = rec.Kid
-    return token.SignedString(signingKeyFromRecord(rec))
+	now := time.Now()
+	rec, err := s.keys.ActiveKey(context.Background())
+	if err != nil {
+		return "", err
+	}
+	claims := jwt.MapClaims{
+		"iss": s.cfg.Issuer,
+		"aud": clientID,
+		"iat": now.Unix(),
+		"jti": uuid.NewString(),
+		"events": map[string]any{
+			"http://schemas.openid.net/event/backchannel-logout": map[string]any{},
+		},
+		"sid": sid,
+	}
+	if subject != "" {
+		claims["sub"] = subject
+	}
+	token := jwt.NewWithClaims(jwt.GetSigningMethod(rec.Alg), claims)
+	token.Header["kid"] = rec.Kid
+	return token.SignedString(signingKeyFromRecord(rec))
 }
 
 // signingKeyFromRecord 从数据库记录解析私钥，供 JWT 库签名使用。

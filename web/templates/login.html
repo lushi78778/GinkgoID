@@ -6,12 +6,21 @@
     <title>登录 - OP</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial; margin: 2rem; }
-        .box { max-width: 420px; margin: auto; border: 1px solid #ddd; padding: 1.5rem; border-radius: 8px; }
-        label { display:block; margin-top: .5rem; }
-        input[type=text], input[type=password] { width: 100%; padding: .5rem; }
-        button { margin-top: 1rem; padding: .6rem 1rem; }
-        .error { color: #b00; }
+        :root { --bg:#0b1020; --card:#12182b; --txt:#e6e8ef; --muted:#9aa3b2; --pri:#6366f1; --pri-h:#4f46e5; --ring:#93c5fd; }
+        @media (prefers-color-scheme: light){ :root { --bg:#f6f7fb; --card:#ffffff; --txt:#0f172a; --muted:#475569; --pri:#4f46e5; --pri-h:#4338ca; --ring:#2563eb; } }
+        *{ box-sizing: border-box }
+        body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; background: var(--bg); color: var(--txt); display:flex; min-height:100vh; align-items:center; justify-content:center; }
+        .card { width: 100%; max-width: 420px; background: var(--card); border: 1px solid rgba(148,163,184,.2); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.25); padding: 24px; }
+        h2 { margin: 0 0 6px 0; font-size: 22px; }
+        p.sub { margin:0 0 16px 0; color: var(--muted); font-size: 14px }
+        label { display:block; margin: 10px 0 6px; font-size: 14px; color: var(--muted) }
+        input[type=text], input[type=password]{ width:100%; padding:10px 12px; border:1px solid rgba(148,163,184,.35); background: transparent; color: var(--txt); border-radius: 8px; outline: none; }
+        input:focus{ border-color: var(--ring); box-shadow: 0 0 0 3px rgba(59,130,246,.25) }
+        .actions{ display:flex; align-items:center; justify-content:flex-end; margin-top:16px }
+        button{ appearance:none; border:0; background: var(--pri); color:#fff; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight:600 }
+        button:hover{ background: var(--pri-h) }
+        .error { color: #ef4444; margin: 6px 0 0; font-size: 14px }
+        .kv{ display:none }
     </style>
     <meta http-equiv="X-Frame-Options" content="DENY">
     <meta http-equiv="Content-Security-Policy" content="frame-ancestors 'none'">
@@ -35,15 +44,17 @@
     <meta name="keywords" content="OIDC,Login">
 </head>
 <body>
-<div class="box">
+<div class="card">
     <h2>登录</h2>
+    <p class="sub">使用您的账户凭据继续</p>
     {{ if .error }}<p class="error">{{ .error }}</p>{{ end }}
-    <form method="post" action="/login">
+    <form method="post" action="/login" novalidate>
+        <input class="kv" type="hidden" name="csrf_token" value="{{ .csrf }}" />
         <!-- 保留原始 authorize 请求参数（不包含凭据字段） -->
         {{ range $key, $vals := .params }}
             {{ if and (ne $key "username") (ne $key "password") }}
                 {{ range $vals }}
-                    <input type="hidden" name="{{ $key }}" value="{{ . }}" />
+                    <input class="kv" type="hidden" name="{{ $key }}" value="{{ . }}" />
                 {{ end }}
             {{ end }}
         {{ end }}
@@ -51,7 +62,9 @@
         <input type="text" name="username" autocomplete="username" value="{{ with index .params "username" }}{{ index . 0 }}{{ else }}{{ with index .params "login_hint" }}{{ index . 0 }}{{ end }}{{ end }}">
         <label>密码</label>
         <input type="password" name="password" autocomplete="current-password">
-        <button type="submit">登录</button>
+        <div class="actions">
+            <button type="submit">登录</button>
+        </div>
     </form>
 </div>
 </body>

@@ -14,25 +14,23 @@ package main
 // @name Authorization
 
 import (
-    "context"
-    "net/http"
-    "os"
-    "os/signal"
-    "syscall"
-    "time"
+	"context"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
 
-    "github.com/gin-gonic/gin"
-    log "github.com/sirupsen/logrus"
-    
+	"github.com/gin-gonic/gin"
+	log "github.com/sirupsen/logrus"
 
-    "ginkgoid/internal/config"
-    "ginkgoid/internal/handlers"
-    "ginkgoid/internal/metrics"
-    "ginkgoid/internal/middlewares"
-    "ginkgoid/internal/services"
-    "ginkgoid/internal/storage"
-
-    
+	"ginkgoid/internal/config"
+	"ginkgoid/internal/handlers"
+	"ginkgoid/internal/metrics"
+	"ginkgoid/internal/middlewares"
+	"ginkgoid/internal/services"
+	"ginkgoid/internal/storage"
 )
 
 // main 为 OP 服务入口：加载配置、初始化日志/存储/服务、注册路由并启动 HTTP 服务。
@@ -44,6 +42,9 @@ func main() {
 
 	// 加载配置（以配置文件为主，配合内置默认值）
 	cfg := config.Load()
+	if strings.TrimSpace(cfg.Issuer) == "" {
+		log.Fatal("configuration error: issuer must be set (config.yaml)")
+	}
 	log.WithFields(log.Fields{
 		"env":           cfg.Env,
 		"http_addr":     cfg.HTTPAddr,
@@ -71,51 +72,73 @@ func main() {
 	if err := keySvc.EnsureActiveKey(context.Background()); err != nil {
 		log.WithError(err).Fatal("ensure active signing key")
 	}
-    clientSvc := services.NewClientService(db, cfg)
-    userSvc := services.NewUserService(db)
-    consentSvc := services.NewConsentService(db)
-    sessionSvc := services.NewSessionService(rdb, cfg)
-    tokenSvc := services.NewTokenService(cfg, keySvc)
-    codeSvc := services.NewCodeService(rdb, cfg)
-    refreshSvc := services.NewRefreshService(rdb, cfg)
-    revokeSvc := services.NewRevocationService(rdb)
-    logSvc := services.NewLogService(db)
-    tokenRepo := services.NewTokenRepo(db)
+	clientSvc := services.NewClientService(db, cfg)
+	userSvc := services.NewUserService(db)
+	consentSvc := services.NewConsentService(db)
+	sessionSvc := services.NewSessionService(rdb, cfg)
+	tokenSvc := services.NewTokenService(cfg, keySvc)
+	codeSvc := services.NewCodeService(rdb, cfg)
+	refreshSvc := services.NewRefreshService(rdb, cfg)
+	revokeSvc := services.NewRevocationService(rdb)
+	logSvc := services.NewLogService(db)
+	tokenRepo := services.NewTokenRepo(db)
 
 	// HTTP 路由与中间件
 	if cfg.Env == "prod" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.New()
-    router.Use(gin.Recovery())
-    router.Use(middlewares.RequestLogger())
-    router.Use(middlewares.SecurityHeaders(cfg))
-    router.Use(metrics.Handler())
+	router.Use(gin.Recovery())
+	router.Use(middlewares.RequestLogger())
+	router.Use(middlewares.SecurityHeaders(cfg))
+	router.Use(metrics.Handler())
 
-    // 装载 HTTP 处理器
-    h := handlers.New(
-        cfg, keySvc, clientSvc, userSvc, sessionSvc, tokenSvc, codeSvc, consentSvc, refreshSvc, revokeSvc, logSvc, tokenRepo, rdb,
-    )
-    h.RegisterRoutes(router)
-    // OpenAPI 文档（Stoplight Elements）与静态规范（受配置 docs.enable 控制）
-    if cfg.Docs.Enable {
-        router.GET("/openapi.json", func(c *gin.Context) {
-            if p := firstExisting(cfg.Docs.SpecPath, "docs/swagger.json", "../docs/swagger.json", "../../docs/swagger.json"); p != "" {
-                c.File(p)
-                return
-            }
-            c.String(404, "openapi spec not found")
-        })
-        route := cfg.Docs.Route
-        if route == "" { route = "/docs" }
-        router.GET(route, func(c *gin.Context) {
-            if p := firstExisting(cfg.Docs.PagePath, "web/stoplight.html", "../web/stoplight.html", "../../web/stoplight.html"); p != "" {
-                c.File(p)
-                return
-            }
-            c.String(404, "docs page not found")
-        })
-    }
+	// 装载 HTTP 处理器
+	h := handlers.New(
+		cfg, keySvc, clientSvc, userSvc, sessionSvc, tokenSvc, codeSvc, consentSvc, refreshSvc, revokeSvc, logSvc, tokenRepo, rdb,
+	)
+	h.RegisterRoutes(router)
+	// 用户管理 SPA（/app）静态资源与入口页
+	if p := firstExisting("web/app/index.html", "../web/app/index.html", "../../web/app/index.html"); p != "" {
+		// 计算 assets 目录位置
+		var base string
+		if strings.HasSuffix(p, "/index.html") {
+			base = p[:len(p)-len("/index.html")]
+		} else {
+			base = p
+		}
+		router.Static("/app/assets", base+"/assets")
+		router.GET("/app", func(c *gin.Context) { c.File(p) })
+		// 使用 NoRoute 处理 /app/* 的前端路由，避免与 /app/assets 冲突
+		router.NoRoute(func(c *gin.Context) {
+			path := c.Request.URL.Path
+			if path == "/app" || strings.HasPrefix(path, "/app/") {
+				c.File(p)
+				return
+			}
+		})
+	}
+	// OpenAPI 文档（Stoplight Elements）与静态规范（受配置 docs.enable 控制）
+	if cfg.Docs.Enable {
+		router.GET("/openapi.json", func(c *gin.Context) {
+			if p := firstExisting(cfg.Docs.SpecPath, "docs/swagger.json", "../docs/swagger.json", "../../docs/swagger.json"); p != "" {
+				c.File(p)
+				return
+			}
+			c.String(404, "openapi spec not found")
+		})
+		route := cfg.Docs.Route
+		if route == "" {
+			route = "/docs"
+		}
+		router.GET(route, func(c *gin.Context) {
+			if p := firstExisting(cfg.Docs.PagePath, "web/stoplight.html", "../web/stoplight.html", "../../web/stoplight.html"); p != "" {
+				c.File(p)
+				return
+			}
+			c.String(404, "docs page not found")
+		})
+	}
 
 	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: router}
 	go func() {
@@ -125,7 +148,7 @@ func main() {
 		}
 	}()
 
-    // 优雅退出
+	// 优雅退出
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
@@ -141,9 +164,13 @@ func main() {
 
 // firstExisting 在当前进程工作目录下按顺序查找首个存在的文件。
 func firstExisting(paths ...string) string {
-    for _, p := range paths {
-        if p == "" { continue }
-        if _, err := os.Stat(p); err == nil { return p }
-    }
-    return ""
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
 }

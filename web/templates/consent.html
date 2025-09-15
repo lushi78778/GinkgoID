@@ -6,28 +6,39 @@
     <title>授权同意 - OP</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial; margin: 2rem; }
-        .box { max-width: 520px; margin: auto; border: 1px solid #ddd; padding: 1.5rem; border-radius: 8px; }
-        .scopes { margin: .5rem 0; }
-        button { margin-right: .5rem; padding: .6rem 1rem; }
-        .client { color: #333; }
+        :root { --bg:#0b1020; --card:#12182b; --txt:#e6e8ef; --muted:#9aa3b2; --ok:#22c55e; --danger:#ef4444; --bd: rgba(148,163,184,.2) }
+        @media (prefers-color-scheme: light){ :root { --bg:#f6f7fb; --card:#ffffff; --txt:#0f172a; --muted:#475569; --ok:#16a34a; --danger:#dc2626; --bd: rgba(15,23,42,.12) } }
+        body { margin:0; background: var(--bg); color: var(--txt); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; display:flex; min-height:100vh; align-items:center; justify-content:center }
+        .card { width: 100%; max-width: 560px; background: var(--card); border:1px solid var(--bd); border-radius:12px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,.25) }
+        h2 { margin:0 0 6px 0; font-size: 22px }
+        p.client { margin:0 0 12px 0; color: var(--muted) }
+        ul { margin: 10px 0 18px 20px }
+        .actions{ display:flex; gap:12px }
+        button{ appearance:none; border:0; padding: 10px 14px; border-radius: 8px; color:#fff; cursor:pointer; font-weight:600 }
+        .approve{ background: var(--ok) }
+        .deny{ background: var(--danger) }
+        button:hover{ filter:brightness(.95) }
+        .kv{ display:none }
     </style>
 </head>
 <body>
-<div class="box">
+<div class="card">
     <h2>授权请求</h2>
     <p class="client">应用「{{ .client_name }}」请求访问：</p>
-    <ul class="scopes">
+    <ul>
         {{ range .scopes }}<li>{{ . }}</li>{{ end }}
     </ul>
     <form method="post" action="/consent">
+        <input class="kv" type="hidden" name="csrf_token" value="{{ .csrf }}" />
         {{ range $key, $vals := .params }}
             {{ range $vals }}
-                <input type="hidden" name="{{ $key }}" value="{{ . }}" />
+                <input class="kv" type="hidden" name="{{ $key }}" value="{{ . }}" />
             {{ end }}
         {{ end }}
-        <button type="submit" name="decision" value="approve">同意</button>
-        <button type="submit" name="decision" value="deny">拒绝</button>
+        <div class="actions">
+            <button class="approve" type="submit" name="decision" value="approve">同意</button>
+            <button class="deny" type="submit" name="decision" value="deny">拒绝</button>
+        </div>
     </form>
 </div>
 </body>

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: 123456
+          MYSQL_DATABASE: ginkgoid
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -p123456"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+        ports:
+          - 3306:3306
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+      - name: Vet
+        run: go vet ./...
+      - name: Format check
+        run: |
+          diff -u <(echo -n) <(gofmt -s -l .) || true
+      - name: Build
+        run: go build ./...
+      - name: Start server
+        run: |
+          nohup bash -lc 'go run ./cmd/server' >/tmp/server.log 2>&1 &
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:8080/healthz >/dev/null; then echo ready; break; fi; sleep 1; done
+          curl -fsS http://127.0.0.1:8080/.well-known/openid-configuration | head -c 200 || true
+      - name: E2E
+        run: |
+          go run ./cmd/e2e -base http://127.0.0.1:8080 -timeout 30s -v=true

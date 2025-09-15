@@ -95,3 +95,12 @@ security:
     enabled: true
     max_age: 31536000       # 秒
     include_subdomains: true
+
+## 首次建表时的一次性引导数据（仅在 users 表不存在且首次迁移时生效）
+bootstrap:
+  initial_admin:
+    enable: true
+    username: admin
+    password: "123465"
+    email: admin@example.com
+    name: Administrator

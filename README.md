@@ -121,6 +121,12 @@ config.yaml          # 配置示例（可直接使用）
 - 健康检查：`/healthz`
 - 日志：结构化访问日志 + 审计日志（登录/令牌签发/撤销/注销等）
 
+## 发行与运行
+- 本地构建：`make build`，运行：`make run`
+- Docker 构建：`make docker`，或 `docker build -t ginkgoid:latest .`
+- Docker 编排（含 MySQL/Redis）：`docker compose up -d`，默认暴露 `8080/3306/6379`
+- CI：见 `.github/workflows/ci.yml`（build + vet + fmt 检查）
+
 ## 开发辅助（仅非 prod）
 - `POST /dev/users` 创建用户
 - `GET /dev/users` 列出用户
@@ -267,3 +273,9 @@ config.yaml          # 配置示例（可直接使用）
 - 存储模型：`internal/storage/migrate.go`
 
 欢迎提交 Issue 与 PR！
+
+## Roadmap（规范扩展）
+- PAR（Pushed Authorization Requests）
+- Request Object（JAR）
+- JARM（JWT Secured Authorization Response Mode）
+- 更细粒度审计与失败原因指标暴露

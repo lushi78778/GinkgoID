@@ -1,0 +1,19 @@
+# IDE folders
+.idea/
+.vscode/
+
+# macOS
+.DS_Store
+
+# Binaries and build artifacts
+bin/
+dist/
+
+# Node artifacts
+app/node_modules/
+app/.vite/
+app/dist/
+
+# Logs
+*.log
+

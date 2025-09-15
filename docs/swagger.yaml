@@ -179,6 +179,311 @@ paths:
       summary: OIDC Discovery
       tags:
       - .well-known
+  /api/consents:
+    get:
+      description: 列出当前用户对各客户端已授予的 scope
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 授权记录列表
+      tags:
+      - consent
+  /api/consents/{client_id}:
+    delete:
+      description: 撤销当前用户对指定 client 的授权，并尝试吊销关联的刷新令牌
+      parameters:
+      - description: 客户端 ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 撤销授权
+      tags:
+      - consent
+  /api/me:
+    get:
+      description: 读取当前登录用户的基础资料
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 当前用户信息
+      tags:
+      - user
+    put:
+      consumes:
+      - application/json
+      description: 更新当前登录用户的姓名/邮箱
+      parameters:
+      - description: '{name,email}'
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 更新我的资料
+      tags:
+      - user
+  /api/me/password:
+    post:
+      consumes:
+      - application/json
+      description: 需要提供旧口令与新口令
+      parameters:
+      - description: '{oldPassword,newPassword}'
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 修改我的口令
+      tags:
+      - user
+  /api/my/clients:
+    get:
+      description: 返回我拥有的已注册客户端（应用）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 我的应用列表
+      tags:
+      - clients
+  /api/my/clients/{client_id}:
+    delete:
+      description: 物理删除我拥有的客户端
+      parameters:
+      - description: 客户端 ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 删除我的客户端
+      tags:
+      - clients
+  /api/my/clients/{client_id}/disable:
+    put:
+      description: 将指定客户端置为未批准（approved=false）
+      parameters:
+      - description: 客户端 ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 禁用我的客户端
+      tags:
+      - clients
+  /api/users:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 管理员 - 用户列表
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: '{username,password,email,name,is_admin,is_dev}'
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 管理员 - 创建用户
+      tags:
+      - admin
+  /api/users/{id}:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: '{email,name,is_admin,is_dev,password}'
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 管理员 - 更新用户
+      tags:
+      - admin
   /authorize:
     get:
       description: 实现授权码 + PKCE 及可选 Hybrid 流程
