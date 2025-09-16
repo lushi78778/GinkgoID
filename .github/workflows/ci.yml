@@ -13,10 +13,11 @@ jobs:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: 123456
+          # 使用仓库 Secrets.MYSQL_ROOT_PASSWORD；未提供则使用临时随机弱密码，仅限 CI
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD || '123465' }}
           MYSQL_DATABASE: ginkgoid
         options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -p123456"
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -p${{ secrets.MYSQL_ROOT_PASSWORD || 'ciTemp123!' }}"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 20

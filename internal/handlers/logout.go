@@ -9,12 +9,15 @@ import (
 	"time"
 
 	"ginkgoid/internal/storage"
+
+	"ginkgoid/internal/services"
+
 	"github.com/gin-gonic/gin"
 )
 
 // @Summary      注销（RP-Initiated Logout）
 // @Description  清理 OP 会话并通知已登录 RP；可选重定向
-// @Tags         logout
+// @Tags         session-management
 // @Produce      html
 // @Param        id_token_hint            query string false "RP 提供的 ID Token"
 // @Param        post_logout_redirect_uri query string false "注销后重定向 URI"
@@ -65,7 +68,15 @@ func (h *Handler) logout(c *gin.Context) {
 		}
 	}
 	ip := c.ClientIP()
-	h.logSvc.Write(c, "INFO", "USER_LOGOUT", nil, nil, "logout", ip)
+	h.logSvc.Write(c, "INFO", "USER_LOGOUT", nil, nil, "logout", ip, services.LogWriteOpts{
+		RequestID: c.GetString("request_id"),
+		SessionID: sid,
+		Method:    c.Request.Method,
+		Path:      c.Request.URL.Path,
+		Status:    http.StatusOK,
+		UserAgent: c.Request.UserAgent(),
+		Outcome:   "success",
+	})
 	urls := []string{}
 	if sid != "" {
 		ids, _ := h.rdb.SMembers(c, "sid:clients:"+sid).Result()

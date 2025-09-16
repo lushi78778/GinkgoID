@@ -18,7 +18,7 @@ mysql:
   ## MySQL 主机与端口
   host: 127.0.0.1
   port: 3306
-  ## 账号与密码（生产务必修改）
+  ## 账号与密码（生产务必修改；示例值仅用于本地开发）
   user: root
   password: 123456
   ## 数据库名
@@ -36,6 +36,9 @@ redis:
 crypto:
   ## ID Token/Access Token 签名算法：RS256 或 ES256
   id_token_alg: RS256
+  ## 可选：用于在本地对私钥进行对称加密的密钥。仅在不使用 KMS 时启用。
+  ## 建议为 32 字节随机字符串；生产请妥善保管或使用 KMS。
+  key_encryption_key: "9c7e2a4d3f1b5c8a0d6e9f2b4c7d8e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819" 
 
 token:
   ## 访问令牌有效期
@@ -74,7 +77,7 @@ cors:
 
 registration:
   ## 是否需要审批（true 时新注册客户端默认不可用）
-  require_approval: false
+  require_approval: true
   ## 初始访问令牌：非空时，调用 POST /register 必须携带 Authorization: Bearer <此值>
   initial_access_token: ""
   ## sector_identifier_uri 校验超时

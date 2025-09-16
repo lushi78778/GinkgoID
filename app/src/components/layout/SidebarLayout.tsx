@@ -22,6 +22,8 @@ export function SidebarLayout({ children }: { children: React.ReactNode }) {
     { to: '/app/authorized', label: '授权应用' },
     { to: '/app/clients', label: '客户端', dev: true },
     { to: '/docs', label: '文档', dev: true, external: true },
+    { to: '/app/admin/approvals', label: '客户端审批', admin: true },
+    { to: '/app/admin/logs', label: '审计日志', admin: true },
     { to: '/app/admin/users', label: '用户管理', admin: true },
   ]
 

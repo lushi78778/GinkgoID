@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"ginkgoid/internal/metrics"
+	"ginkgoid/internal/services"
 	"ginkgoid/internal/storage"
 	"ginkgoid/internal/utils"
 )
@@ -45,7 +46,15 @@ func (h *Handler) token(c *gin.Context) {
 	valid, cl, err := h.clientSvc.ValidateSecret(c, clientID, clientSecret)
 	if err != nil || !valid {
 		cid := clientID
-		h.logSvc.Write(c, "WARN", "TOKEN_CLIENT_AUTH_FAILED", nil, &cid, "invalid client auth", c.ClientIP())
+		h.logSvc.Write(c, "WARN", "TOKEN_CLIENT_AUTH_FAILED", nil, &cid, "invalid client auth", c.ClientIP(), services.LogWriteOpts{
+			RequestID: c.GetString("request_id"),
+			Method:    c.Request.Method,
+			Path:      c.Request.URL.Path,
+			Status:    401,
+			UserAgent: c.Request.UserAgent(),
+			Outcome:   "failure",
+			ErrorCode: "invalid_client",
+		})
 		c.JSON(401, gin.H{"error": "invalid_client"})
 		return
 	}
@@ -81,26 +90,58 @@ func (h *Handler) token(c *gin.Context) {
 			expected := base64.RawURLEncoding.EncodeToString(sum[:])
 			if expected != ac.CodeChallenge {
 				cid := clientID
-				h.logSvc.Write(c, "WARN", "TOKEN_PKCE_MISMATCH", nil, &cid, "pkce s256 mismatch", c.ClientIP())
+				h.logSvc.Write(c, "WARN", "TOKEN_PKCE_MISMATCH", nil, &cid, "pkce s256 mismatch", c.ClientIP(), services.LogWriteOpts{
+					RequestID: c.GetString("request_id"),
+					Method:    c.Request.Method,
+					Path:      c.Request.URL.Path,
+					Status:    400,
+					UserAgent: c.Request.UserAgent(),
+					Outcome:   "failure",
+					ErrorCode: "invalid_grant",
+				})
 				c.JSON(400, gin.H{"error": "invalid_grant"})
 				return
 			}
 		} else if method == "PLAIN" || method == "" {
 			if h.cfg.Token.RequirePKCES256 {
 				cid := clientID
-				h.logSvc.Write(c, "WARN", "TOKEN_PKCE_METHOD_UNSUPPORTED", nil, &cid, "plain not allowed", c.ClientIP())
+				h.logSvc.Write(c, "WARN", "TOKEN_PKCE_METHOD_UNSUPPORTED", nil, &cid, "plain not allowed", c.ClientIP(), services.LogWriteOpts{
+					RequestID: c.GetString("request_id"),
+					Method:    c.Request.Method,
+					Path:      c.Request.URL.Path,
+					Status:    400,
+					UserAgent: c.Request.UserAgent(),
+					Outcome:   "failure",
+					ErrorCode: "invalid_grant",
+				})
 				c.JSON(400, gin.H{"error": "invalid_grant", "error_description": "pkce_s256_required"})
 				return
 			}
 			if codeVerifier != ac.CodeChallenge {
 				cid := clientID
-				h.logSvc.Write(c, "WARN", "TOKEN_PKCE_MISMATCH", nil, &cid, "pkce plain mismatch", c.ClientIP())
+				h.logSvc.Write(c, "WARN", "TOKEN_PKCE_MISMATCH", nil, &cid, "pkce plain mismatch", c.ClientIP(), services.LogWriteOpts{
+					RequestID: c.GetString("request_id"),
+					Method:    c.Request.Method,
+					Path:      c.Request.URL.Path,
+					Status:    400,
+					UserAgent: c.Request.UserAgent(),
+					Outcome:   "failure",
+					ErrorCode: "invalid_grant",
+				})
 				c.JSON(400, gin.H{"error": "invalid_grant"})
 				return
 			}
 		} else {
 			cid := clientID
-			h.logSvc.Write(c, "WARN", "TOKEN_PKCE_METHOD_UNSUPPORTED", nil, &cid, "unsupported method", c.ClientIP())
+			h.logSvc.Write(c, "WARN", "TOKEN_PKCE_METHOD_UNSUPPORTED", nil, &cid, "unsupported method", c.ClientIP(), services.LogWriteOpts{
+				RequestID: c.GetString("request_id"),
+				Method:    c.Request.Method,
+				Path:      c.Request.URL.Path,
+				Status:    400,
+				UserAgent: c.Request.UserAgent(),
+				Outcome:   "failure",
+				ErrorCode: "invalid_grant",
+			})
 			c.JSON(400, gin.H{"error": "invalid_grant", "error_description": "unsupported_code_challenge_method"})
 			return
 		}
@@ -109,7 +150,28 @@ func (h *Handler) token(c *gin.Context) {
 		return
 	}
 	subject := h.subjectFor(cl, ac.UserID)
-	at, exp, jti, err := h.tokenSvc.BuildAccessTokenJWT(cl.ClientID, ac.UserID, subject, ac.Scope, ac.SID)
+	// DPoP: 若请求包含 DPoP-Proof，则尝试验证并生成 jkt
+	var cnfJKT string
+	if proof := c.GetHeader("DPoP"); proof != "" {
+		if jwk, err := services.ExtractDPoPJWK(proof); err == nil {
+			if jkt, jerr := services.CalcJKT(jwk); jerr == nil {
+				// 验证 proof（基础版）
+				_ = services.VerifyDPoPProof(proof, c.Request.Method, c.Request.URL.String())
+				cnfJKT = jkt
+			}
+		} else {
+			h.logSvc.Write(c, "WARN", "DPoP_INVALID", nil, &cl.ClientID, "invalid dpop proof", c.ClientIP(), services.LogWriteOpts{
+				RequestID: c.GetString("request_id"),
+				Method:    c.Request.Method,
+				Path:      c.Request.URL.Path,
+				Status:    400,
+				UserAgent: c.Request.UserAgent(),
+				Outcome:   "failure",
+				ErrorCode: "invalid_dpop",
+			})
+		}
+	}
+	at, exp, jti, err := h.tokenSvc.BuildAccessTokenJWT(cl.ClientID, ac.UserID, subject, ac.Scope, ac.SID, cnfJKT)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "server_error"})
 		return
@@ -136,6 +198,9 @@ func (h *Handler) token(c *gin.Context) {
 			extra["email_verified"] = u.EmailVerified
 		}
 	}
+	if cnfJKT != "" {
+		extra["cnf"] = map[string]any{"jkt": cnfJKT}
+	}
 	idt, err := h.tokenSvc.BuildIDToken(cl.ClientID, subject, ac.Nonce, "urn:op:auth:pwd", atHash, time.Now(), extra)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "server_error"})
@@ -143,12 +208,36 @@ func (h *Handler) token(c *gin.Context) {
 	}
 	metrics.TokensIssued.Inc()
 	resp := gin.H{"access_token": at, "token_type": "Bearer", "expires_in": int(h.cfg.Token.AccessTokenTTL.Seconds()), "id_token": idt}
+	if cnfJKT != "" {
+		resp["token_type"] = "DPoP"
+		h.logSvc.Write(c, "INFO", "DPoP_BOUND", &ac.UserID, &cl.ClientID, "access token bound to dpop key", c.ClientIP(), services.LogWriteOpts{
+			RequestID: c.GetString("request_id"),
+			SessionID: ac.SID,
+			Method:    c.Request.Method,
+			Path:      c.Request.URL.Path,
+			Status:    200,
+			UserAgent: c.Request.UserAgent(),
+			Outcome:   "success",
+			Extra:     map[string]any{"jkt": cnfJKT},
+		})
+	}
 	if strings.Contains(" "+ac.Scope+" ", " offline_access ") {
 		if rt, err := h.refreshSvc.Issue(c, ac.UserID, cl.ClientID, ac.Scope, subject, ac.SID); err == nil {
 			resp["refresh_token"] = rt
 		}
 	}
 	c.JSON(200, resp)
+	// 成功签发访问令牌
+	h.logSvc.Write(c, "INFO", "TOKEN_ISSUED", &ac.UserID, &cl.ClientID, "access/id token issued", c.ClientIP(), services.LogWriteOpts{
+		RequestID: c.GetString("request_id"),
+		SessionID: ac.SID,
+		Method:    c.Request.Method,
+		Path:      c.Request.URL.Path,
+		Status:    200,
+		UserAgent: c.Request.UserAgent(),
+		Outcome:   "success",
+		Extra:     map[string]any{"scope": ac.Scope, "has_refresh": strings.Contains(" "+ac.Scope+" ", " offline_access ")},
+	})
 }
 
 func (h *Handler) handleRefreshToken(c *gin.Context, clientID string, cl *storage.Client) {
@@ -163,7 +252,7 @@ func (h *Handler) handleRefreshToken(c *gin.Context, clientID string, cl *storag
 		return
 	}
 	subject := h.subjectFor(cl, rec.UserID)
-	at, exp, jti, err := h.tokenSvc.BuildAccessTokenJWT(cl.ClientID, rec.UserID, subject, rec.Scope, rec.SID)
+	at, exp, jti, err := h.tokenSvc.BuildAccessTokenJWT(cl.ClientID, rec.UserID, subject, rec.Scope, rec.SID, "")
 	if err != nil {
 		c.JSON(500, gin.H{"error": "server_error"})
 		return
@@ -177,4 +266,14 @@ func (h *Handler) handleRefreshToken(c *gin.Context, clientID string, cl *storag
 	}
 	metrics.TokensIssued.Inc()
 	c.JSON(200, gin.H{"access_token": at, "token_type": "Bearer", "expires_in": int(h.cfg.Token.AccessTokenTTL.Seconds()), "id_token": idt, "refresh_token": newRT})
+	h.logSvc.Write(c, "INFO", "TOKEN_REFRESHED", &rec.UserID, &cl.ClientID, "access/id token refreshed", c.ClientIP(), services.LogWriteOpts{
+		RequestID: c.GetString("request_id"),
+		SessionID: rec.SID,
+		Method:    c.Request.Method,
+		Path:      c.Request.URL.Path,
+		Status:    200,
+		UserAgent: c.Request.UserAgent(),
+		Outcome:   "success",
+		Extra:     map[string]any{"scope": rec.Scope, "rotated_refresh": newRT != ""},
+	})
 }

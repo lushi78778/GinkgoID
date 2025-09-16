@@ -45,6 +45,21 @@ func main() {
 	if strings.TrimSpace(cfg.Issuer) == "" {
 		log.Fatal("configuration error: issuer must be set (config.yaml)")
 	}
+	// 生产环境基线检查：禁止默认弱口令/盐与默认数据库密码进入生产。
+	if cfg.Env == "prod" {
+		if cfg.MySQL.Password == "123456" || cfg.MySQL.Password == "password" || cfg.MySQL.Password == "" {
+			log.Fatal("insecure mysql password in prod; configure mysql.password in config.yaml")
+		}
+		if strings.Contains(cfg.MySQL.User, "root") {
+			log.Warn("using MySQL root in prod is discouraged")
+		}
+		if cfg.Pairwise.Enable && cfg.Pairwise.Salt == "dev-pairwise-salt-change-me" {
+			log.Fatal("insecure pairwise salt in prod; set pairwise.salt")
+		}
+		if cfg.Bootstrap.InitialAdmin.Enable && (cfg.Bootstrap.InitialAdmin.Password == "123465" || cfg.Bootstrap.InitialAdmin.Password == "") {
+			log.Fatal("insecure initial_admin.password in prod; disable bootstrap or set strong password")
+		}
+	}
 	log.WithFields(log.Fields{
 		"env":           cfg.Env,
 		"http_addr":     cfg.HTTPAddr,
@@ -89,6 +104,7 @@ func main() {
 	}
 	router := gin.New()
 	router.Use(gin.Recovery())
+	router.Use(middlewares.RequestID())
 	router.Use(middlewares.RequestLogger())
 	router.Use(middlewares.SecurityHeaders(cfg))
 	router.Use(metrics.Handler())
@@ -99,7 +115,7 @@ func main() {
 	)
 	h.RegisterRoutes(router)
 	// 用户管理 SPA（/app）静态资源与入口页
-	if p := firstExisting("web/app/index.html", "../web/app/index.html", "../../web/app/index.html"); p != "" {
+	if p := config.FirstExisting("web/app/index.html", "../web/app/index.html", "../../web/app/index.html"); p != "" {
 		// 计算 assets 目录位置
 		var base string
 		if strings.HasSuffix(p, "/index.html") {
@@ -121,7 +137,7 @@ func main() {
 	// OpenAPI 文档（Stoplight Elements）与静态规范（受配置 docs.enable 控制）
 	if cfg.Docs.Enable {
 		router.GET("/openapi.json", func(c *gin.Context) {
-			if p := firstExisting(cfg.Docs.SpecPath, "docs/swagger.json", "../docs/swagger.json", "../../docs/swagger.json"); p != "" {
+			if p := config.FirstExisting(cfg.Docs.SpecPath, "docs/swagger.json", "../docs/swagger.json", "../../docs/swagger.json"); p != "" {
 				c.File(p)
 				return
 			}
@@ -132,7 +148,7 @@ func main() {
 			route = "/docs"
 		}
 		router.GET(route, func(c *gin.Context) {
-			if p := firstExisting(cfg.Docs.PagePath, "web/stoplight.html", "../web/stoplight.html", "../../web/stoplight.html"); p != "" {
+			if p := config.FirstExisting(cfg.Docs.PagePath, "web/stoplight.html", "../web/stoplight.html", "../../web/stoplight.html"); p != "" {
 				c.File(p)
 				return
 			}
@@ -162,15 +178,4 @@ func main() {
 	}
 }
 
-// firstExisting 在当前进程工作目录下按顺序查找首个存在的文件。
-func firstExisting(paths ...string) string {
-	for _, p := range paths {
-		if p == "" {
-			continue
-		}
-		if _, err := os.Stat(p); err == nil {
-			return p
-		}
-	}
-	return ""
-}
+// 说明：firstExisting 的逻辑已统一移至 config.FirstExisting，避免重复实现。

@@ -4,13 +4,16 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/gin-gonic/gin"
 	"strings"
+
+	"ginkgoid/internal/services"
+
+	"github.com/gin-gonic/gin"
 )
 
 // @Summary      会话探测 Iframe（简化）
-// @Description  返回可被前端轮询的 iframe 页面，用于检测 OP 会话状态
-// @Tags         session
+// @Description  用于 RP 轮询检查 OP 登录状态的 iframe
+// @Tags         session-management
 // @Produce      html
 // @Success      200 {string} string "HTML"
 // @Router       /check_session [get]
@@ -32,8 +35,8 @@ func (h *Handler) checkSessionIframe(c *gin.Context) {
 }
 
 // @Summary      登录页
-// @Description  渲染用户名密码登录页面（开发/示例用途）
-// @Tags         auth
+// @Description  显示用户名密码登录表单
+// @Tags         ui
 // @Produce      html
 // @Success      200 {string} string "HTML"
 // @Router       /login [get]
@@ -43,13 +46,14 @@ func (h *Handler) loginPage(c *gin.Context) {
 }
 
 // @Summary      提交登录
-// @Description  使用表单提交用户名与密码，成功后创建会话并重定向回 /authorize
-// @Tags         auth
+// @Description  处理用户名密码登录请求
+// @Tags         ui
 // @Accept       x-www-form-urlencoded
+// @Produce      html
 // @Param        username  formData string true  "用户名"
 // @Param        password  formData string true  "密码"
 // @Success      302 {string} string "重定向至 /authorize"
-// @Failure      401 {string} string "用户名或密码错误"
+// @Failure      401 {string} string "HTML 登录页（含错误）"
 // @Router       /login [post]
 func (h *Handler) loginSubmit(c *gin.Context) {
 	if !validateCSRF(c) {
@@ -74,7 +78,19 @@ func (h *Handler) loginSubmit(c *gin.Context) {
 	u, err := h.userSvc.FindByUsername(c, username)
 	if err != nil || !h.userSvc.CheckPassword(u, password) {
 		ip := c.ClientIP()
-		h.logSvc.Write(c, "WARN", "USER_LOGIN_FAILED", nil, nil, "bad credentials", ip)
+		rid := c.GetString("request_id")
+		ua := c.Request.UserAgent()
+		h.logSvc.Write(c, "WARN", "USER_LOGIN_FAILED", nil, nil, "bad credentials", ip, services.LogWriteOpts{
+			RequestID: rid,
+			SessionID: readSessionCookie(c, h.cfg.Session.CookieName),
+			Method:    c.Request.Method,
+			Path:      c.Request.URL.Path,
+			Status:    http.StatusUnauthorized,
+			UserAgent: ua,
+			Outcome:   "failure",
+			ErrorCode: "bad_credentials",
+			Extra:     map[string]any{"username": username},
+		})
 		c.HTML(http.StatusUnauthorized, "login.html", gin.H{"error": "用户名或密码错误", "params": c.Request.PostForm, "csrf": h.issueCSRF(c)})
 		return
 	}
@@ -97,7 +113,18 @@ func (h *Handler) loginSubmit(c *gin.Context) {
 	}
 	http.SetCookie(c.Writer, cookie)
 	ip := c.ClientIP()
-	h.logSvc.Write(c, "INFO", "USER_LOGIN", h.userSvc.IDPtr(u.ID), nil, "login success", ip)
+	rid := c.GetString("request_id")
+	ua := c.Request.UserAgent()
+	h.logSvc.Write(c, "INFO", "USER_LOGIN", h.userSvc.IDPtr(u.ID), nil, "login success", ip, services.LogWriteOpts{
+		RequestID: rid,
+		SessionID: sess.SID,
+		Method:    c.Request.Method,
+		Path:      c.Request.URL.Path,
+		Status:    http.StatusFound,
+		UserAgent: ua,
+		Outcome:   "success",
+		Extra:     map[string]any{"username": u.Username},
+	})
 	hasClient := orig.Get("client_id") != "" && orig.Get("redirect_uri") != ""
 	if hasClient {
 		c.Redirect(http.StatusFound, "/authorize?"+orig.Encode())
@@ -116,8 +143,8 @@ func (h *Handler) loginSubmit(c *gin.Context) {
 }
 
 // @Summary      授权同意页
-// @Description  展示客户端名称与申请的 scope，供用户确认
-// @Tags         consent
+// @Description  显示授权范围供用户确认
+// @Tags         ui
 // @Produce      html
 // @Param        client_id  query string true  "客户端 ID"
 // @Param        scope      query string true  "请求的 scope（空格分隔）"
@@ -137,12 +164,12 @@ func (h *Handler) consentPage(c *gin.Context) {
 }
 
 // @Summary      提交授权同意
-// @Description  用户同意后记录 consent 并重定向回 /authorize
-// @Tags         consent
+// @Description  处理用户对授权的同意或拒绝
+// @Tags         ui
 // @Accept       x-www-form-urlencoded
+// @Produce      html
 // @Param        decision   formData string true  "approve 或 deny"
 // @Success      302 {string} string "重定向至 /authorize"
-// @Failure      400 {object} map[string]string
 // @Router       /consent [post]
 func (h *Handler) consentSubmit(c *gin.Context) {
 	if !validateCSRF(c) {
@@ -180,6 +207,15 @@ func (h *Handler) consentSubmit(c *gin.Context) {
 }
 
 // 开发辅助（仅非 prod）
+// @Summary      开发辅助 - 创建用户
+// @Description  （仅限非生产环境）快速创建用户
+// @Tags         dev
+// @Accept       json
+// @Produce      json
+// @Param        body body object true "{username,password}"
+// @Success      201 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Router       /dev/users [post]
 func (h *Handler) devCreateUser(c *gin.Context) {
 	type req struct{ Username, Password, Email, Name string }
 	var r req
@@ -195,6 +231,12 @@ func (h *Handler) devCreateUser(c *gin.Context) {
 	c.JSON(201, gin.H{"id": u.ID, "username": u.Username})
 }
 
+// @Summary      开发辅助 - 用户列表
+// @Description  （仅限非生产环境）列出所有用户
+// @Tags         dev
+// @Produce      json
+// @Success      200 {array} storage.User
+// @Router       /dev/users [get]
 func (h *Handler) devListUsers(c *gin.Context) {
 	users, err := h.userSvc.List(c, 100)
 	if err != nil {
@@ -208,6 +250,13 @@ func (h *Handler) devListUsers(c *gin.Context) {
 	c.JSON(200, out)
 }
 
+// @Summary      开发辅助 - 轮换密钥
+// @Description  （仅限非生产环境）触发一次新的 JWK 生成
+// @Tags         dev
+// @Produce      json
+// @Success      200 {object} map[string]string
+// @Failure      500 {object} map[string]string
+// @Router       /dev/keys/rotate [post]
 func (h *Handler) devRotateKeys(c *gin.Context) {
 	if err := h.keySvc.Rotate(c); err != nil {
 		c.JSON(500, gin.H{"error": "rotate_failed"})

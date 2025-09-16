@@ -46,7 +46,14 @@
 <body>
 <div class="card">
     <h2>登录</h2>
-    <p class="sub">使用您的账户凭据继续</p>
+        <p class="sub">使用您的账户凭据继续</p>
+        {{ if index .params "acr_hint" }}
+            <!-- Go 模板默认会对变量进行 HTML 转义，这里安全输出 -->
+            <p class="sub">需要更高等级认证：{{ index (index .params "acr_hint") 0 }}</p>
+        {{ end }}
+        {{ if index .params "suggest_mfa" }}
+            <p class="sub">建议开启多因素认证以提升账户安全</p>
+        {{ end }}
     {{ if .error }}<p class="error">{{ .error }}</p>{{ end }}
     <form method="post" action="/login" novalidate>
         <input class="kv" type="hidden" name="csrf_token" value="{{ .csrf }}" />
@@ -58,7 +65,7 @@
                 {{ end }}
             {{ end }}
         {{ end }}
-        <label>用户名</label>
+    <label>用户名</label>
         <input type="text" name="username" autocomplete="username" value="{{ with index .params "username" }}{{ index . 0 }}{{ else }}{{ with index .params "login_hint" }}{{ index . 0 }}{{ end }}{{ end }}">
         <label>密码</label>
         <input type="password" name="password" autocomplete="current-password">

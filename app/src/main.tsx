@@ -11,6 +11,8 @@ import { AuthProvider } from './lib/auth'
 import Clients from './pages/Clients'
 import Callback from './pages/Callback'
 import AuthorizedApps from './pages/AuthorizedApps'
+import AdminClientApprovals from './pages/AdminClientApprovals'
+import AdminLogs from './pages/AdminLogs'
 
 const router = createBrowserRouter([
   { path: '/app', element: <App />, children: [
@@ -20,6 +22,8 @@ const router = createBrowserRouter([
     { path: 'clients', element: <Clients /> },
     { path: 'cb', element: <Callback /> },
     { path: 'admin/users', element: <AdminUsers /> },
+    { path: 'admin/approvals', element: <AdminClientApprovals /> },
+    { path: 'admin/logs', element: <AdminLogs /> },
   ]},
 ])
 

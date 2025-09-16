@@ -82,7 +82,7 @@ export default function Profile() {
             <Label>旧口令</Label>
             <Input id="oldpwd" type="password" placeholder="旧口令" />
             <Label>新口令</Label>
-            <Input id="newpwd" type="password" placeholder="新口令 (>=6位)" />
+            <Input id="newpwd" type="password" placeholder="新口令 (≥8位，包含字母和数字)" />
             <div className="mt-2 flex justify-end"><Button onClick={changePwd}>更新</Button></div>
           </div>
         </CardContent>

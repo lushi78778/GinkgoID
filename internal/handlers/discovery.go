@@ -11,7 +11,7 @@ import (
 
 // @Summary      OIDC Discovery
 // @Description  获取 OpenID Provider 的元数据文档
-// @Tags         .well-known
+// @Tags         discovery
 // @Produce      json
 // @Success      200 {object} oidc.Discovery
 // @Router       /.well-known/openid-configuration [get]
@@ -67,7 +67,7 @@ func (h *Handler) discovery(c *gin.Context) {
 
 // @Summary      JWKS 公钥集合
 // @Description  返回用于验证 ID Token/Access Token 的公钥集合（JWK Set）
-// @Tags         .well-known
+// @Tags         discovery
 // @Produce      json
 // @Success      200 {string} string "JWKS JSON"
 // @Router       /jwks.json [get]
@@ -83,14 +83,14 @@ func (h *Handler) jwks(c *gin.Context) {
 
 // @Summary      Prometheus 指标
 // @Description  暴露 Prometheus 指标（text/plain; version=0.0.4）
-// @Tags         ops
+// @Tags         operations
 // @Produce      plain
 // @Success      200 {string} string
 // @Router       /metrics [get]
 func (h *Handler) metrics(c *gin.Context) { metrics.Exposer()(c) }
 
 // @Summary      健康检查
-// @Tags         ops
+// @Tags         operations
 // @Produce      json
 // @Success      200 {object} map[string]string
 // @Router       /healthz [get]

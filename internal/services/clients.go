@@ -30,6 +30,9 @@ func NewClientService(db *gorm.DB, cfg config.Config) *ClientService {
 	return &ClientService{db: db, cfg: cfg}
 }
 
+// DB 返回底层 *gorm.DB，供部分只读查询使用（如管理端列表）。
+func (s *ClientService) DB() *gorm.DB { return s.db }
+
 // Register 根据请求创建新客户端；当 token_endpoint_auth_method 为
 // "client_secret_basic" 时会生成 client_secret 并仅保存其哈希。
 type RegisterRequest struct {
@@ -116,9 +119,17 @@ func (s *ClientService) Register(ctx context.Context, baseURL string, req *Regis
 		plruJSON, _ = json.Marshal(req.PostLogoutRedirectURIs)
 	}
 	now := time.Now()
-	expAt := time.Time{}
+	var expAtPtr *time.Time
 	if s.cfg.Token.RegistrationPATTTL > 0 {
-		expAt = now.Add(s.cfg.Token.RegistrationPATTTL)
+		ex := now.Add(s.cfg.Token.RegistrationPATTTL)
+		expAtPtr = &ex
+	}
+	// 当不需要人工审批时，直接标记为已通过（Status=1，Approved=true）；需要审批则 Status=0，Approved=false。
+	status := 1
+	approved := true
+	if s.cfg.Registration.RequireApproval {
+		status = 0
+		approved = false
 	}
 	c := &storage.Client{
 		ClientID:                         clientID,
@@ -134,8 +145,9 @@ func (s *ClientService) Register(ctx context.Context, baseURL string, req *Regis
 		FrontchannelLogoutURI:            req.FrontchannelLogoutURI,
 		BackchannelLogoutURI:             req.BackchannelLogoutURI,
 		PostLogoutRedirectURIs:           string(plruJSON),
-		RegistrationAccessTokenExpiresAt: expAt,
-		Approved:                         !s.cfg.Registration.RequireApproval,
+		RegistrationAccessTokenExpiresAt: expAtPtr,
+		Status:                           status,
+		Approved:                         approved,
 		CreatedAt:                        now,
 		UpdatedAt:                        now,
 	}
@@ -209,8 +221,10 @@ func (s *ClientService) ValidateRegistrationToken(ctx context.Context, clientID,
 	if c.RegistrationAccessTokenHash == "" {
 		return false, c, nil
 	}
-	if !c.RegistrationAccessTokenExpiresAt.IsZero() && time.Now().After(c.RegistrationAccessTokenExpiresAt) {
-		return false, c, nil
+	if c.RegistrationAccessTokenExpiresAt != nil {
+		if time.Now().After(*c.RegistrationAccessTokenExpiresAt) {
+			return false, c, nil
+		}
 	}
 	if bcrypt.CompareHashAndPassword([]byte(c.RegistrationAccessTokenHash), []byte(token)) != nil {
 		return false, c, nil
@@ -245,4 +259,46 @@ func (s *ClientService) FindAnyByID(ctx context.Context, clientID string) (*stor
 // DeleteByID 物理删除客户端记录。
 func (s *ClientService) DeleteByID(ctx context.Context, clientID string) error {
 	return s.db.WithContext(ctx).Where("client_id = ?", clientID).Delete(&storage.Client{}).Error
+}
+
+// ListPending 列出待审批的客户端（Status=0）。
+func (s *ClientService) ListPending(ctx context.Context, limit int) ([]storage.Client, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 200
+	}
+	var list []storage.Client
+	if err := s.db.WithContext(ctx).Where("status = ? AND approved = ?", 0, false).Order("created_at desc").Limit(limit).Find(&list).Error; err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+// ApproveClient 审批通过指定客户端（置 Status=1，Approved=true，并记录审批元信息）。
+func (s *ClientService) ApproveClient(ctx context.Context, clientID string, adminUserID uint64) error {
+	var c storage.Client
+	if err := s.db.WithContext(ctx).Where("client_id = ?", clientID).First(&c).Error; err != nil {
+		return err
+	}
+	c.Status = 1
+	c.Approved = true
+	c.ApprovedBy = adminUserID
+	t := time.Now()
+	c.ApprovedAt = &t
+	c.RejectReason = ""
+	return s.db.WithContext(ctx).Save(&c).Error
+}
+
+// RejectClient 审批拒绝指定客户端（置 Status=2，Approved=false，并写入拒绝原因）。
+func (s *ClientService) RejectClient(ctx context.Context, clientID string, adminUserID uint64, reason string) error {
+	var c storage.Client
+	if err := s.db.WithContext(ctx).Where("client_id = ?", clientID).First(&c).Error; err != nil {
+		return err
+	}
+	c.Status = 2
+	c.Approved = false
+	c.ApprovedBy = adminUserID
+	t := time.Now()
+	c.ApprovedAt = &t
+	c.RejectReason = reason
+	return s.db.WithContext(ctx).Save(&c).Error
 }

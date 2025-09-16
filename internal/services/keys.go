@@ -19,6 +19,7 @@ import (
 
 	"ginkgoid/internal/config"
 	"ginkgoid/internal/storage"
+	"ginkgoid/internal/utils"
 )
 
 // KeyService 管理签名密钥（存于 MySQL）并对外提供 JWKS 公钥集合。
@@ -59,13 +60,20 @@ func (s *KeyService) generateAndStoreRS256(ctx context.Context) error {
 	pubBytes := x509.MarshalPKCS1PublicKey(&key.PublicKey)
 	pubPem := pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: pubBytes})
 	kid := fmt.Sprintf("rsa-%d", time.Now().Unix())
+	// 若配置了 KeyEncryptionKey，则在写入数据库前加密私钥字段
+	privToStore := string(privPem)
+	if s.cfg.Crypto.KeyEncryptionKey != "" {
+		if enc, err := utils.EncryptAESGCM(s.cfg.Crypto.KeyEncryptionKey, privPem); err == nil {
+			privToStore = enc
+		}
+	}
 	rec := &storage.JWKKey{
 		Kid:        kid,
 		Alg:        "RS256",
 		Kty:        "RSA",
 		Use:        "sig",
 		PublicKey:  string(pubPem),
-		PrivateKey: string(privPem),
+		PrivateKey: privToStore,
 		Active:     true,
 		CreatedAt:  time.Now(),
 	}
@@ -88,13 +96,19 @@ func (s *KeyService) generateAndStoreES256(ctx context.Context) error {
 	}
 	pubPem := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubBytes})
 	kid := fmt.Sprintf("es256-%d", time.Now().Unix())
+	privToStore := string(privPem)
+	if s.cfg.Crypto.KeyEncryptionKey != "" {
+		if enc, err := utils.EncryptAESGCM(s.cfg.Crypto.KeyEncryptionKey, privPem); err == nil {
+			privToStore = enc
+		}
+	}
 	rec := &storage.JWKKey{
 		Kid:        kid,
 		Alg:        "ES256",
 		Kty:        "EC",
 		Use:        "sig",
 		PublicKey:  string(pubPem),
-		PrivateKey: string(privPem),
+		PrivateKey: privToStore,
 		Active:     true,
 		CreatedAt:  time.Now(),
 	}

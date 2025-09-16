@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"encoding/json"
+
 	"github.com/gin-gonic/gin"
 
 	"ginkgoid/internal/metrics"
@@ -46,18 +47,39 @@ func (h *Handler) authorize(c *gin.Context) {
 	codeChallengeMethod := c.Query("code_challenge_method")
 	prompt := c.Query("prompt")
 	acrValues := c.Query("acr_values")
+	minACR := strings.TrimSpace(h.cfg.ACR.Minimum)
 	rt0 := strings.TrimSpace(responseType)
 	if !(rt0 == "code" || rt0 == "code id_token" || rt0 == "id_token code") {
 		metrics.AuthorizeErrors.WithLabelValues("unsupported_response_type").Inc()
 		cid := clientID
-		h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", nil, &cid, "unsupported_response_type", c.ClientIP())
+		h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", nil, &cid, "unsupported_response_type", c.ClientIP(), services.LogWriteOpts{
+			RequestID: c.GetString("request_id"),
+			SessionID: readSessionCookie(c, h.cfg.Session.CookieName),
+			Method:    c.Request.Method,
+			Path:      c.Request.URL.Path,
+			Status:    http.StatusFound,
+			UserAgent: c.Request.UserAgent(),
+			Outcome:   "failure",
+			ErrorCode: "unsupported_response_type",
+			Extra:     map[string]any{"response_type": responseType, "state_exists": state != "", "nonce_exists": nonce != ""},
+		})
 		h.redirectError(c, redirectURI, "unsupported_response_type", state)
 		return
 	}
 	if !strings.Contains(" "+scope+" ", " openid ") {
 		metrics.AuthorizeErrors.WithLabelValues("invalid_scope").Inc()
 		cid := clientID
-		h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", nil, &cid, "invalid_scope", c.ClientIP())
+		h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", nil, &cid, "invalid_scope", c.ClientIP(), services.LogWriteOpts{
+			RequestID: c.GetString("request_id"),
+			SessionID: readSessionCookie(c, h.cfg.Session.CookieName),
+			Method:    c.Request.Method,
+			Path:      c.Request.URL.Path,
+			Status:    http.StatusFound,
+			UserAgent: c.Request.UserAgent(),
+			Outcome:   "failure",
+			ErrorCode: "invalid_scope",
+			Extra:     map[string]any{"scope": scope, "state_exists": state != "", "nonce_exists": nonce != ""},
+		})
 		h.redirectError(c, redirectURI, "invalid_scope", state)
 		return
 	}
@@ -82,16 +104,42 @@ func (h *Handler) authorize(c *gin.Context) {
 	if sess == nil || strings.Contains(prompt, "login") {
 		if prompt == "none" {
 			metrics.AuthorizeErrors.WithLabelValues("login_required").Inc()
+			h.logSvc.Write(c, "WARN", "AUTHORIZE_PROMPT_NONE_DENIED", nil, &cl.ClientID, "prompt=none but login required", c.ClientIP(), services.LogWriteOpts{
+				RequestID: c.GetString("request_id"),
+				SessionID: sid,
+				Method:    c.Request.Method,
+				Path:      c.Request.URL.Path,
+				Status:    http.StatusFound,
+				UserAgent: c.Request.UserAgent(),
+				Outcome:   "failure",
+				ErrorCode: "login_required",
+				Extra:     map[string]any{"state_exists": state != "", "nonce_exists": nonce != ""},
+			})
 			h.redirectError(c, redirectURI, "login_required", state)
 			return
 		}
-		c.HTML(http.StatusOK, "login.html", gin.H{"params": c.Request.URL.Query(), "csrf": h.issueCSRF(c)})
+		params := c.Request.URL.Query()
+		if minACR != "" {
+			params.Set("acr_hint", minACR)
+		}
+		if h.cfg.ACR.SuggestMFA {
+			params.Set("suggest_mfa", "1")
+		}
+		c.HTML(http.StatusOK, "login.html", gin.H{"params": params, "csrf": h.issueCSRF(c)})
 		return
+	}
+	// 配置的最小 ACR（若存在）与请求 acr_values（若提供）都需要满足
+	requiredACRs := []string{}
+	if minACR != "" {
+		requiredACRs = append(requiredACRs, minACR)
 	}
 	if acrValues != "" {
 		required := strings.Fields(acrValues)
+		requiredACRs = append(requiredACRs, required...)
+	}
+	if len(requiredACRs) > 0 {
 		ok := false
-		for _, r := range required {
+		for _, r := range requiredACRs {
 			if r == sess.ACR {
 				ok = true
 				break
@@ -99,7 +147,32 @@ func (h *Handler) authorize(c *gin.Context) {
 		}
 		if !ok {
 			metrics.AuthorizeErrors.WithLabelValues("acr_unmet").Inc()
-			h.redirectError(c, redirectURI, "unmet_authentication_requirements", state)
+			// 更细化的日志：区分来自最小 ACR 还是请求 acr_values
+			reason := "acr unmet"
+			extra := map[string]any{"required": requiredACRs, "session_acr": sess.ACR}
+			if minACR != "" {
+				extra["min_acr"] = minACR
+			}
+			h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", &sess.UserID, &cl.ClientID, reason, c.ClientIP(), services.LogWriteOpts{
+				RequestID: c.GetString("request_id"),
+				SessionID: sess.SID,
+				Method:    c.Request.Method,
+				Path:      c.Request.URL.Path,
+				Status:    http.StatusFound,
+				UserAgent: c.Request.UserAgent(),
+				Outcome:   "failure",
+				ErrorCode: "unmet_authentication_requirements",
+				Extra:     extra,
+			})
+			// 给前端登录页一个提升 ACR 的提示
+			params := c.Request.URL.Query()
+			if minACR != "" {
+				params.Set("acr_hint", minACR)
+			}
+			if h.cfg.ACR.SuggestMFA {
+				params.Set("suggest_mfa", "1")
+			}
+			c.HTML(http.StatusOK, "login.html", gin.H{"params": params, "csrf": h.issueCSRF(c)})
 			return
 		}
 	}
@@ -108,10 +181,28 @@ func (h *Handler) authorize(c *gin.Context) {
 			if time.Since(sess.AuthTime) > time.Duration(sec)*time.Second {
 				if prompt == "none" {
 					metrics.AuthorizeErrors.WithLabelValues("login_required_stale").Inc()
+					h.logSvc.Write(c, "WARN", "AUTHORIZE_PROMPT_NONE_STALE", &sess.UserID, &cl.ClientID, "max_age exceeded with prompt=none", c.ClientIP(), services.LogWriteOpts{
+						RequestID: c.GetString("request_id"),
+						SessionID: sess.SID,
+						Method:    c.Request.Method,
+						Path:      c.Request.URL.Path,
+						Status:    http.StatusFound,
+						UserAgent: c.Request.UserAgent(),
+						Outcome:   "failure",
+						ErrorCode: "login_required",
+						Extra:     map[string]any{"state_exists": state != "", "nonce_exists": nonce != "", "max_age": sec},
+					})
 					h.redirectError(c, redirectURI, "login_required", state)
 					return
 				}
-				c.HTML(http.StatusOK, "login.html", gin.H{"params": c.Request.URL.Query(), "csrf": h.issueCSRF(c)})
+				params := c.Request.URL.Query()
+				if minACR != "" {
+					params.Set("acr_hint", minACR)
+				}
+				if h.cfg.ACR.SuggestMFA {
+					params.Set("suggest_mfa", "1")
+				}
+				c.HTML(http.StatusOK, "login.html", gin.H{"params": params, "csrf": h.issueCSRF(c)})
 				return
 			}
 		}
@@ -131,10 +222,32 @@ func (h *Handler) authorize(c *gin.Context) {
 	}
 	if codeChallenge == "" {
 		metrics.AuthorizeErrors.WithLabelValues("pkce_missing").Inc()
+		h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", &sess.UserID, &cl.ClientID, "pkce missing", c.ClientIP(), services.LogWriteOpts{
+			RequestID: c.GetString("request_id"),
+			SessionID: sess.SID,
+			Method:    c.Request.Method,
+			Path:      c.Request.URL.Path,
+			Status:    http.StatusFound,
+			UserAgent: c.Request.UserAgent(),
+			Outcome:   "failure",
+			ErrorCode: "invalid_request",
+			Extra:     map[string]any{"reason": "pkce_missing"},
+		})
 		h.redirectError(c, redirectURI, "invalid_request", state)
 		return
 	}
 	if h.cfg.Token.RequirePKCES256 && strings.ToUpper(codeChallengeMethod) != "S256" {
+		h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", &sess.UserID, &cl.ClientID, "pkce s256 required", c.ClientIP(), services.LogWriteOpts{
+			RequestID: c.GetString("request_id"),
+			SessionID: sess.SID,
+			Method:    c.Request.Method,
+			Path:      c.Request.URL.Path,
+			Status:    http.StatusFound,
+			UserAgent: c.Request.UserAgent(),
+			Outcome:   "failure",
+			ErrorCode: "invalid_request",
+			Extra:     map[string]any{"method": codeChallengeMethod},
+		})
 		h.redirectError(c, redirectURI, "invalid_request", state)
 		return
 	}
@@ -148,6 +261,16 @@ func (h *Handler) authorize(c *gin.Context) {
 	if rt == "code id_token" || rt == "id_token code" {
 		if nonce == "" {
 			metrics.AuthorizeErrors.WithLabelValues("nonce_missing").Inc()
+			h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", &sess.UserID, &cl.ClientID, "nonce missing for hybrid", c.ClientIP(), services.LogWriteOpts{
+				RequestID: c.GetString("request_id"),
+				SessionID: sess.SID,
+				Method:    c.Request.Method,
+				Path:      c.Request.URL.Path,
+				Status:    http.StatusFound,
+				UserAgent: c.Request.UserAgent(),
+				Outcome:   "failure",
+				ErrorCode: "invalid_request",
+			})
 			h.redirectError(c, redirectURI, "invalid_request", state)
 			return
 		}
@@ -200,6 +323,17 @@ func (h *Handler) authorize(c *gin.Context) {
 			b.WriteString("\\\"/>")
 			b.WriteString("<noscript><button type=\\\"submit\\\">Continue</button></noscript></form><script>document.forms[0].submit();</script></body></html>")
 			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(b.String()))
+			// 成功返回（Hybrid form_post）
+			h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code+id_token", c.ClientIP(), services.LogWriteOpts{
+				RequestID: c.GetString("request_id"),
+				SessionID: sess.SID,
+				Method:    c.Request.Method,
+				Path:      c.Request.URL.Path,
+				Status:    http.StatusOK,
+				UserAgent: c.Request.UserAgent(),
+				Outcome:   "success",
+				Extra:     map[string]any{"response_mode": "form_post"},
+			})
 			return
 		case "fragment":
 			v := url.Values{}
@@ -209,6 +343,16 @@ func (h *Handler) authorize(c *gin.Context) {
 			}
 			v.Set("id_token", idt)
 			c.Redirect(http.StatusFound, redirectURI+"#"+v.Encode())
+			h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code+id_token", c.ClientIP(), services.LogWriteOpts{
+				RequestID: c.GetString("request_id"),
+				SessionID: sess.SID,
+				Method:    c.Request.Method,
+				Path:      c.Request.URL.Path,
+				Status:    http.StatusFound,
+				UserAgent: c.Request.UserAgent(),
+				Outcome:   "success",
+				Extra:     map[string]any{"response_mode": "fragment"},
+			})
 			return
 		default:
 			v := url.Values{}
@@ -218,6 +362,16 @@ func (h *Handler) authorize(c *gin.Context) {
 			}
 			v.Set("id_token", idt)
 			c.Redirect(http.StatusFound, redirectURI+"#"+v.Encode())
+			h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code+id_token", c.ClientIP(), services.LogWriteOpts{
+				RequestID: c.GetString("request_id"),
+				SessionID: sess.SID,
+				Method:    c.Request.Method,
+				Path:      c.Request.URL.Path,
+				Status:    http.StatusFound,
+				UserAgent: c.Request.UserAgent(),
+				Outcome:   "success",
+				Extra:     map[string]any{"response_mode": "default"},
+			})
 			return
 		}
 	} else {
@@ -236,6 +390,16 @@ func (h *Handler) authorize(c *gin.Context) {
 			}
 			b.WriteString("<noscript><button type=\\\"submit\\\">Continue</button></noscript></form><script>document.forms[0].submit();</script></body></html>")
 			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(b.String()))
+			h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code", c.ClientIP(), services.LogWriteOpts{
+				RequestID: c.GetString("request_id"),
+				SessionID: sess.SID,
+				Method:    c.Request.Method,
+				Path:      c.Request.URL.Path,
+				Status:    http.StatusOK,
+				UserAgent: c.Request.UserAgent(),
+				Outcome:   "success",
+				Extra:     map[string]any{"response_mode": "form_post"},
+			})
 			return
 		}
 		sep := "?"
@@ -247,6 +411,16 @@ func (h *Handler) authorize(c *gin.Context) {
 			loc += "&state=" + urlQueryEscape(state)
 		}
 		c.Redirect(http.StatusFound, loc)
+		h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code", c.ClientIP(), services.LogWriteOpts{
+			RequestID: c.GetString("request_id"),
+			SessionID: sess.SID,
+			Method:    c.Request.Method,
+			Path:      c.Request.URL.Path,
+			Status:    http.StatusFound,
+			UserAgent: c.Request.UserAgent(),
+			Outcome:   "success",
+			Extra:     map[string]any{"response_mode": "redirect"},
+		})
 	}
 }
 

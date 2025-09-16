@@ -24,6 +24,7 @@
 <body>
 <div class="card">
     <h2>授权请求</h2>
+    <!-- Go 模板默认转义变量，避免 XSS -->
     <p class="client">应用「{{ .client_name }}」请求访问：</p>
     <ul>
         {{ range .scopes }}<li>{{ . }}</li>{{ end }}

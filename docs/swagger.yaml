@@ -144,6 +144,30 @@ definitions:
       token_endpoint_auth_method:
         type: string
     type: object
+  storage.User:
+    properties:
+      createdAt:
+        type: string
+      email:
+        type: string
+      emailVerified:
+        type: boolean
+      id:
+        type: integer
+      isAdmin:
+        type: boolean
+      isDev:
+        type: boolean
+      name:
+        type: string
+      password:
+        description: 已哈希的口令
+        type: string
+      updatedAt:
+        type: string
+      username:
+        type: string
+    type: object
 info:
   contact:
     email: lushi78778@xray.top
@@ -165,7 +189,7 @@ paths:
             $ref: '#/definitions/oidc.Discovery'
       summary: OIDC Discovery
       tags:
-      - .well-known
+      - discovery
   /.well-known/openid-configuration:
     get:
       description: 获取 OpenID Provider 的元数据文档
@@ -178,7 +202,7 @@ paths:
             $ref: '#/definitions/oidc.Discovery'
       summary: OIDC Discovery
       tags:
-      - .well-known
+      - discovery
   /api/consents:
     get:
       description: 列出当前用户对各客户端已授予的 scope
@@ -200,7 +224,7 @@ paths:
             type: object
       summary: 授权记录列表
       tags:
-      - consent
+      - consent-api
   /api/consents/{client_id}:
     delete:
       description: 撤销当前用户对指定 client 的授权，并尝试吊销关联的刷新令牌
@@ -225,7 +249,7 @@ paths:
             type: object
       summary: 撤销授权
       tags:
-      - consent
+      - consent-api
   /api/me:
     get:
       description: 读取当前登录用户的基础资料
@@ -245,7 +269,7 @@ paths:
             type: object
       summary: 当前用户信息
       tags:
-      - user
+      - user-api
     put:
       consumes:
       - application/json
@@ -279,7 +303,7 @@ paths:
             type: object
       summary: 更新我的资料
       tags:
-      - user
+      - user-api
   /api/me/password:
     post:
       consumes:
@@ -313,7 +337,7 @@ paths:
             type: object
       summary: 修改我的口令
       tags:
-      - user
+      - user-api
   /api/my/clients:
     get:
       description: 返回我拥有的已注册客户端（应用）
@@ -335,7 +359,7 @@ paths:
             type: object
       summary: 我的应用列表
       tags:
-      - clients
+      - client-api
   /api/my/clients/{client_id}:
     delete:
       description: 物理删除我拥有的客户端
@@ -366,7 +390,7 @@ paths:
             type: object
       summary: 删除我的客户端
       tags:
-      - clients
+      - client-api
   /api/my/clients/{client_id}/disable:
     put:
       description: 将指定客户端置为未批准（approved=false）
@@ -397,7 +421,7 @@ paths:
             type: object
       summary: 禁用我的客户端
       tags:
-      - clients
+      - client-api
   /api/users:
     get:
       produces:
@@ -418,7 +442,7 @@ paths:
             type: object
       summary: 管理员 - 用户列表
       tags:
-      - admin
+      - admin-api
     post:
       consumes:
       - application/json
@@ -445,7 +469,7 @@ paths:
             type: object
       summary: 管理员 - 创建用户
       tags:
-      - admin
+      - admin-api
   /api/users/{id}:
     put:
       consumes:
@@ -483,7 +507,7 @@ paths:
             type: object
       summary: 管理员 - 更新用户
       tags:
-      - admin
+      - admin-api
   /authorize:
     get:
       description: 实现授权码 + PKCE 及可选 Hybrid 流程
@@ -554,7 +578,7 @@ paths:
       - oauth2
   /check_session:
     get:
-      description: 返回可被前端轮询的 iframe 页面，用于检测 OP 会话状态
+      description: 用于 RP 轮询检查 OP 登录状态的 iframe
       produces:
       - text/html
       responses:
@@ -564,10 +588,10 @@ paths:
             type: string
       summary: 会话探测 Iframe（简化）
       tags:
-      - session
+      - session-management
   /consent:
     get:
-      description: 展示客户端名称与申请的 scope，供用户确认
+      description: 显示授权范围供用户确认
       parameters:
       - description: 客户端 ID
         in: query
@@ -588,31 +612,91 @@ paths:
             type: string
       summary: 授权同意页
       tags:
-      - consent
+      - ui
     post:
       consumes:
       - application/x-www-form-urlencoded
-      description: 用户同意后记录 consent 并重定向回 /authorize
+      description: 处理用户对授权的同意或拒绝
       parameters:
       - description: approve 或 deny
         in: formData
         name: decision
         required: true
         type: string
+      produces:
+      - text/html
       responses:
         "302":
           description: 重定向至 /authorize
           schema:
             type: string
+      summary: 提交授权同意
+      tags:
+      - ui
+  /dev/keys/rotate:
+    post:
+      description: （仅限非生产环境）触发一次新的 JWK 生成
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 开发辅助 - 轮换密钥
+      tags:
+      - dev
+  /dev/users:
+    get:
+      description: （仅限非生产环境）列出所有用户
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/storage.User'
+            type: array
+      summary: 开发辅助 - 用户列表
+      tags:
+      - dev
+    post:
+      consumes:
+      - application/json
+      description: （仅限非生产环境）快速创建用户
+      parameters:
+      - description: '{username,password}'
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
         "400":
           description: Bad Request
           schema:
             additionalProperties:
               type: string
             type: object
-      summary: 提交授权同意
+      summary: 开发辅助 - 创建用户
       tags:
-      - consent
+      - dev
   /healthz:
     get:
       produces:
@@ -626,7 +710,7 @@ paths:
             type: object
       summary: 健康检查
       tags:
-      - ops
+      - operations
   /introspect:
     post:
       consumes:
@@ -669,10 +753,10 @@ paths:
             type: string
       summary: JWKS 公钥集合
       tags:
-      - .well-known
+      - discovery
   /login:
     get:
-      description: 渲染用户名密码登录页面（开发/示例用途）
+      description: 显示用户名密码登录表单
       produces:
       - text/html
       responses:
@@ -682,11 +766,11 @@ paths:
             type: string
       summary: 登录页
       tags:
-      - auth
+      - ui
     post:
       consumes:
       - application/x-www-form-urlencoded
-      description: 使用表单提交用户名与密码，成功后创建会话并重定向回 /authorize
+      description: 处理用户名密码登录请求
       parameters:
       - description: 用户名
         in: formData
@@ -698,18 +782,20 @@ paths:
         name: password
         required: true
         type: string
+      produces:
+      - text/html
       responses:
         "302":
           description: 重定向至 /authorize
           schema:
             type: string
         "401":
-          description: 用户名或密码错误
+          description: HTML 登录页（含错误）
           schema:
             type: string
       summary: 提交登录
       tags:
-      - auth
+      - ui
   /logout:
     get:
       description: 清理 OP 会话并通知已登录 RP；可选重定向
@@ -735,7 +821,7 @@ paths:
             type: string
       summary: 注销（RP-Initiated Logout）
       tags:
-      - logout
+      - session-management
   /metrics:
     get:
       description: 暴露 Prometheus 指标（text/plain; version=0.0.4）
@@ -748,7 +834,7 @@ paths:
             type: string
       summary: Prometheus 指标
       tags:
-      - ops
+      - operations
   /register:
     delete:
       description: 使用 registration_access_token 将客户端标记为未批准
@@ -1030,6 +1116,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: 用户信息端点（UserInfo）
       tags:
       - oidc
@@ -1058,6 +1146,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: 用户信息端点（UserInfo）
       tags:
       - oidc

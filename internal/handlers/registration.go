@@ -49,7 +49,15 @@ func (h *Handler) registerClient(c *gin.Context) {
 	}
 	c.Header("Location", resp.RegistrationClientURI)
 	ip := c.ClientIP()
-	h.logSvc.Write(c, "INFO", "CLIENT_REGISTERED", nil, &resp.ClientID, "client registered", ip)
+	h.logSvc.Write(c, "INFO", "CLIENT_REGISTERED", nil, &resp.ClientID, "client registered", ip, services.LogWriteOpts{
+		RequestID: c.GetString("request_id"),
+		Method:    c.Request.Method,
+		Path:      c.Request.URL.Path,
+		Status:    201,
+		UserAgent: c.Request.UserAgent(),
+		Outcome:   "success",
+		Extra:     map[string]any{"name": cl.Name},
+	})
 	c.JSON(201, resp)
 }
 
@@ -80,13 +88,22 @@ func (h *Handler) rotateRegistrationToken(c *gin.Context) {
 	if hh, err := bcrypt.GenerateFromPassword([]byte(newTok), bcrypt.DefaultCost); err == nil {
 		cl.RegistrationAccessTokenHash = string(hh)
 		if h.cfg.Token.RegistrationPATTTL > 0 {
-			cl.RegistrationAccessTokenExpiresAt = now.Add(h.cfg.Token.RegistrationPATTTL)
+			ex := now.Add(h.cfg.Token.RegistrationPATTTL)
+			cl.RegistrationAccessTokenExpiresAt = &ex
 		}
 		if err := h.clientSvc.Save(c, cl); err != nil {
 			c.JSON(500, gin.H{"error": "server_error"})
 			return
 		}
 		c.JSON(200, gin.H{"registration_access_token": newTok})
+		h.logSvc.Write(c, "INFO", "REGISTRATION_TOKEN_ROTATED", nil, &cl.ClientID, "registration token rotated", c.ClientIP(), services.LogWriteOpts{
+			RequestID: c.GetString("request_id"),
+			Method:    c.Request.Method,
+			Path:      c.Request.URL.Path,
+			Status:    200,
+			UserAgent: c.Request.UserAgent(),
+			Outcome:   "success",
+		})
 		return
 	}
 	c.JSON(500, gin.H{"error": "server_error"})

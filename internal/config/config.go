@@ -29,7 +29,16 @@ type Config struct {
 	Registration RegistrationConfig
 	Limits       LimitConfig
 	Security     SecurityConfig
+	ACR          ACRConfig
 	Bootstrap    BootstrapConfig
+}
+
+// ACRConfig 定义认证上下文（ACR/AMR）相关策略
+type ACRConfig struct {
+	// 最低可接受的 ACR（如 "urn:op:auth:pwd"、"urn:op:auth:otp"），为空则不强制
+	Minimum string
+	// 是否建议用户进行多因素（不会强制失败，但会在 UI 提示）
+	SuggestMFA bool
 }
 
 type PairwiseConfig struct {
@@ -65,6 +74,7 @@ func (m MySQLConfig) DSN() string {
 	if params == "" {
 		params = "parseTime=true&loc=Local&charset=utf8mb4,utf8"
 	}
+	// 注意：Password 可能为空（本地无密码开发），生产强烈建议设置强密码
 	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?%s", m.User, m.Password, host, port, db, params)
 }
 
@@ -93,6 +103,9 @@ type CryptoConfig struct {
 	// ID Token/访问令牌（JWT）默认签名算法
 	// 支持：RS256、ES256
 	IDTokenAlg string
+	// 可选：用于在本地对私钥字段进行对称加密的密钥（仅开发/自托管场景）
+	// 建议为 32 字节的随机字符串；生产建议使用 KMS。若为空则不启用加密。
+	KeyEncryptionKey string
 }
 
 type TokenConfig struct {
@@ -192,11 +205,16 @@ func Load() Config {
 	}
 
 	// 2) 配置文件覆盖（若存在）
-	if path := firstExisting("config.yaml", "config.yml", "config.json"); path != "" {
+	if path := FirstExisting("config.yaml", "config.yml", "config.json"); path != "" {
 		_ = loadFromFile(path, &cfg)
 	}
+
+	// 3) 不再从 .env 读取密钥：所有运行时配置应通过 config.yaml 提供。
+	//    如需在部署时注入机密，请通过配置管理系统或环境注入到配置文件生成流程中。
 	return cfg
 }
+
+// note: .env parsing removed to enforce single source of truth (config.yaml).
 
 // 配置文件格式：YAML 或 JSON。仅非零值会覆盖现有字段。
 func loadFromFile(path string, cfg *Config) error {
@@ -241,7 +259,13 @@ type fileModel struct {
 	Registration *fileRegistration `yaml:"registration" json:"registration"`
 	Limits       *fileLimits       `yaml:"limits" json:"limits"`
 	Security     *fileSecurity     `yaml:"security" json:"security"`
+	ACR          *fileACR          `yaml:"acr" json:"acr"`
 	Bootstrap    *fileBootstrap    `yaml:"bootstrap" json:"bootstrap"`
+}
+
+type fileACR struct {
+	Minimum    string `yaml:"minimum" json:"minimum"`
+	SuggestMFA *bool  `yaml:"suggest_mfa" json:"suggest_mfa"`
 }
 
 type filePairwise struct {
@@ -266,7 +290,8 @@ type fileCORS struct {
 	AllowedOrigins []string `yaml:"allowed_origins" json:"allowed_origins"`
 }
 type fileCrypto struct {
-	IDTokenAlg string `yaml:"id_token_alg" json:"id_token_alg"`
+	IDTokenAlg       string `yaml:"id_token_alg" json:"id_token_alg"`
+	KeyEncryptionKey string `yaml:"key_encryption_key" json:"key_encryption_key"`
 }
 type fileToken struct {
 	AccessTokenTTL     string `yaml:"access_token_ttl" json:"access_token_ttl"`
@@ -393,6 +418,9 @@ func (fm *fileModel) apply(cfg *Config) {
 		if fm.Crypto.IDTokenAlg != "" {
 			cfg.Crypto.IDTokenAlg = fm.Crypto.IDTokenAlg
 		}
+		if fm.Crypto.KeyEncryptionKey != "" {
+			cfg.Crypto.KeyEncryptionKey = fm.Crypto.KeyEncryptionKey
+		}
 	}
 	if fm.Token != nil {
 		if fm.Token.AccessTokenTTL != "" {
@@ -481,6 +509,14 @@ func (fm *fileModel) apply(cfg *Config) {
 			cfg.Security.HSTS.IncludeSubdomains = *fm.Security.HSTS.IncludeSubdomains
 		}
 	}
+	if fm.ACR != nil {
+		if fm.ACR.Minimum != "" {
+			cfg.ACR.Minimum = fm.ACR.Minimum
+		}
+		if fm.ACR.SuggestMFA != nil {
+			cfg.ACR.SuggestMFA = *fm.ACR.SuggestMFA
+		}
+	}
 	if fm.Bootstrap != nil && fm.Bootstrap.InitialAdmin != nil {
 		ia := fm.Bootstrap.InitialAdmin
 		if ia.Enable != nil {
@@ -501,7 +537,9 @@ func (fm *fileModel) apply(cfg *Config) {
 	}
 }
 
-func firstExisting(paths ...string) string {
+// FirstExisting 按顺序返回第一个存在的文件路径；若都不存在则返回空字符串。
+// 注意：该函数用于在多路径间进行容错查找，如配置文件或静态资源位置。
+func FirstExisting(paths ...string) string {
 	for _, p := range paths {
 		if p == "" {
 			continue

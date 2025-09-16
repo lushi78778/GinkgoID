@@ -26,7 +26,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    ".well-known"
+                    "discovery"
                 ],
                 "summary": "OIDC Discovery",
                 "responses": {
@@ -46,7 +46,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    ".well-known"
+                    "discovery"
                 ],
                 "summary": "OIDC Discovery",
                 "responses": {
@@ -66,7 +66,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "consent"
+                    "consent-api"
                 ],
                 "summary": "授权记录列表",
                 "responses": {
@@ -99,7 +99,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "consent"
+                    "consent-api"
                 ],
                 "summary": "撤销授权",
                 "parameters": [
@@ -137,7 +137,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "user"
+                    "user-api"
                 ],
                 "summary": "当前用户信息",
                 "responses": {
@@ -168,7 +168,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "user"
+                    "user-api"
                 ],
                 "summary": "更新我的资料",
                 "parameters": [
@@ -221,7 +221,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "user"
+                    "user-api"
                 ],
                 "summary": "修改我的口令",
                 "parameters": [
@@ -270,7 +270,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "clients"
+                    "client-api"
                 ],
                 "summary": "我的应用列表",
                 "responses": {
@@ -303,7 +303,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "clients"
+                    "client-api"
                 ],
                 "summary": "删除我的客户端",
                 "parameters": [
@@ -350,7 +350,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "clients"
+                    "client-api"
                 ],
                 "summary": "禁用我的客户端",
                 "parameters": [
@@ -396,7 +396,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "admin"
+                    "admin-api"
                 ],
                 "summary": "管理员 - 用户列表",
                 "responses": {
@@ -429,7 +429,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "admin"
+                    "admin-api"
                 ],
                 "summary": "管理员 - 创建用户",
                 "parameters": [
@@ -472,7 +472,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "admin"
+                    "admin-api"
                 ],
                 "summary": "管理员 - 更新用户",
                 "parameters": [
@@ -624,12 +624,12 @@ const docTemplate = `{
         },
         "/check_session": {
             "get": {
-                "description": "返回可被前端轮询的 iframe 页面，用于检测 OP 会话状态",
+                "description": "用于 RP 轮询检查 OP 登录状态的 iframe",
                 "produces": [
                     "text/html"
                 ],
                 "tags": [
-                    "session"
+                    "session-management"
                 ],
                 "summary": "会话探测 Iframe（简化）",
                 "responses": {
@@ -644,12 +644,12 @@ const docTemplate = `{
         },
         "/consent": {
             "get": {
-                "description": "展示客户端名称与申请的 scope，供用户确认",
+                "description": "显示授权范围供用户确认",
                 "produces": [
                     "text/html"
                 ],
                 "tags": [
-                    "consent"
+                    "ui"
                 ],
                 "summary": "授权同意页",
                 "parameters": [
@@ -678,12 +678,15 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "用户同意后记录 consent 并重定向回 /authorize",
+                "description": "处理用户对授权的同意或拒绝",
                 "consumes": [
                     "application/x-www-form-urlencoded"
                 ],
+                "produces": [
+                    "text/html"
+                ],
                 "tags": [
-                    "consent"
+                    "ui"
                 ],
                 "summary": "提交授权同意",
                 "parameters": [
@@ -700,6 +703,94 @@ const docTemplate = `{
                         "description": "重定向至 /authorize",
                         "schema": {
                             "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/dev/keys/rotate": {
+            "post": {
+                "description": "（仅限非生产环境）触发一次新的 JWK 生成",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dev"
+                ],
+                "summary": "开发辅助 - 轮换密钥",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/dev/users": {
+            "get": {
+                "description": "（仅限非生产环境）列出所有用户",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dev"
+                ],
+                "summary": "开发辅助 - 用户列表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/storage.User"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "（仅限非生产环境）快速创建用户",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dev"
+                ],
+                "summary": "开发辅助 - 创建用户",
+                "parameters": [
+                    {
+                        "description": "{username,password}",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -720,7 +811,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "ops"
+                    "operations"
                 ],
                 "summary": "健康检查",
                 "responses": {
@@ -790,7 +881,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    ".well-known"
+                    "discovery"
                 ],
                 "summary": "JWKS 公钥集合",
                 "responses": {
@@ -805,12 +896,12 @@ const docTemplate = `{
         },
         "/login": {
             "get": {
-                "description": "渲染用户名密码登录页面（开发/示例用途）",
+                "description": "显示用户名密码登录表单",
                 "produces": [
                     "text/html"
                 ],
                 "tags": [
-                    "auth"
+                    "ui"
                 ],
                 "summary": "登录页",
                 "responses": {
@@ -823,12 +914,15 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "使用表单提交用户名与密码，成功后创建会话并重定向回 /authorize",
+                "description": "处理用户名密码登录请求",
                 "consumes": [
                     "application/x-www-form-urlencoded"
                 ],
+                "produces": [
+                    "text/html"
+                ],
                 "tags": [
-                    "auth"
+                    "ui"
                 ],
                 "summary": "提交登录",
                 "parameters": [
@@ -855,7 +949,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "用户名或密码错误",
+                        "description": "HTML 登录页（含错误）",
                         "schema": {
                             "type": "string"
                         }
@@ -870,7 +964,7 @@ const docTemplate = `{
                     "text/html"
                 ],
                 "tags": [
-                    "logout"
+                    "session-management"
                 ],
                 "summary": "注销（RP-Initiated Logout）",
                 "parameters": [
@@ -910,7 +1004,7 @@ const docTemplate = `{
                     "text/plain"
                 ],
                 "tags": [
-                    "ops"
+                    "operations"
                 ],
                 "summary": "Prometheus 指标",
                 "responses": {
@@ -1311,6 +1405,11 @@ const docTemplate = `{
         },
         "/userinfo": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "使用 Access Token 获取用户 claims 信息",
                 "produces": [
                     "application/json"
@@ -1353,6 +1452,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "使用 Access Token 获取用户 claims 信息",
                 "produces": [
                     "application/json"
@@ -1610,6 +1714,42 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "token_endpoint_auth_method": {
+                    "type": "string"
+                }
+            }
+        },
+        "storage.User": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "emailVerified": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isAdmin": {
+                    "type": "boolean"
+                },
+                "isDev": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "password": {
+                    "description": "已哈希的口令",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }

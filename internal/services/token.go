@@ -15,6 +15,7 @@ import (
 
 	"ginkgoid/internal/config"
 	"ginkgoid/internal/storage"
+	"ginkgoid/internal/utils"
 )
 
 // TokenService 负责签发与校验 JWT 访问令牌与 ID Token。
@@ -29,7 +30,7 @@ func NewTokenService(cfg config.Config, ks *KeyService) *TokenService {
 
 // BuildAccessTokenJWT 签发带标准声明的 JWT 访问令牌。
 // 参数 subject 已由调用方按 public/pairwise 模式计算。
-func (s *TokenService) BuildAccessTokenJWT(clientID string, userID uint64, subject, scope, sid string) (string, time.Time, string, error) {
+func (s *TokenService) BuildAccessTokenJWT(clientID string, userID uint64, subject, scope, sid string, cnfJKT string) (string, time.Time, string, error) {
 	now := time.Now()
 	exp := now.Add(s.cfg.Token.AccessTokenTTL)
 	rec, err := s.keys.ActiveKey(context.Background())
@@ -50,9 +51,12 @@ func (s *TokenService) BuildAccessTokenJWT(clientID string, userID uint64, subje
 		"uid":       userID,
 		"jti":       jti,
 	}
+	if cnfJKT != "" {
+		claims["cnf"] = map[string]any{"jkt": cnfJKT}
+	}
 	token := jwt.NewWithClaims(jwt.GetSigningMethod(rec.Alg), claims)
 	token.Header["kid"] = rec.Kid
-	signed, err := token.SignedString(signingKeyFromRecord(rec))
+	signed, err := token.SignedString(s.signingKeyFromRecord(rec))
 	if err != nil {
 		return "", time.Time{}, "", err
 	}
@@ -93,7 +97,7 @@ func (s *TokenService) BuildIDToken(clientID, subject, nonce, acr, atHash string
 	}
 	token := jwt.NewWithClaims(jwt.GetSigningMethod(rec.Alg), claims)
 	token.Header["kid"] = rec.Kid
-	signed, err := token.SignedString(signingKeyFromRecord(rec))
+	signed, err := token.SignedString(s.signingKeyFromRecord(rec))
 	if err != nil {
 		return "", err
 	}
@@ -123,12 +127,20 @@ func (s *TokenService) BuildLogoutToken(clientID, subject, sid string) (string, 
 	}
 	token := jwt.NewWithClaims(jwt.GetSigningMethod(rec.Alg), claims)
 	token.Header["kid"] = rec.Kid
-	return token.SignedString(signingKeyFromRecord(rec))
+	return token.SignedString(s.signingKeyFromRecord(rec))
 }
 
 // signingKeyFromRecord 从数据库记录解析私钥，供 JWT 库签名使用。
-func signingKeyFromRecord(rec *storage.JWKKey) interface{} {
-	block, _ := pem.Decode([]byte(rec.PrivateKey))
+// 若配置了 KeyEncryptionKey，则尝试解密 PrivateKey 字段后解析 PEM。
+func (s *TokenService) signingKeyFromRecord(rec *storage.JWKKey) interface{} {
+	pkData := []byte(rec.PrivateKey)
+	// 尝试解密（如果配置了加密密钥）
+	if s.cfg.Crypto.KeyEncryptionKey != "" {
+		if dec, err := utils.DecryptAESGCM(s.cfg.Crypto.KeyEncryptionKey, rec.PrivateKey); err == nil {
+			pkData = dec
+		}
+	}
+	block, _ := pem.Decode(pkData)
 	if block == nil {
 		return nil
 	}

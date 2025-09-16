@@ -2,13 +2,14 @@ services:
   mysql:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: 123456
+      # 开发默认值请在 .env 或运行时覆盖，切勿用于生产
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-devOnly123!}
       MYSQL_DATABASE: ginkgoid
     ports:
       - "3306:3306"
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p123456"]
+      test: ["CMD", "sh", "-lc", "mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD:-123465}"]
       interval: 5s
       timeout: 3s
       retries: 20

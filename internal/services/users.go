@@ -5,6 +5,7 @@ package services
 import (
 	"context"
 	"errors"
+	"unicode"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -44,6 +45,10 @@ func (s *UserService) CheckPassword(u *storage.User, password string) bool {
 func (s *UserService) Create(ctx context.Context, username, password, email, name string) (*storage.User, error) {
 	if username == "" || password == "" {
 		return nil, errors.New("username/password required")
+	}
+	// 口令强度校验：最少 8 位，且需包含字母与数字（避免过弱口令）。
+	if !isStrongPassword(password) {
+		return nil, errors.New("weak_password: require >=8 chars with letters and digits")
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	u := &storage.User{Username: username, Password: string(hash), Email: email, EmailVerified: false, Name: name}
@@ -98,8 +103,8 @@ func (s *UserService) ChangePassword(ctx context.Context, id uint64, oldPwd, new
 	if !s.CheckPassword(u, oldPwd) {
 		return errors.New("bad_password")
 	}
-	if len(newPwd) < 6 {
-		return errors.New("weak_password")
+	if !isStrongPassword(newPwd) {
+		return errors.New("weak_password: require >=8 chars with letters and digits")
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte(newPwd), bcrypt.DefaultCost)
 	u.Password = string(hash)
@@ -108,8 +113,8 @@ func (s *UserService) ChangePassword(ctx context.Context, id uint64, oldPwd, new
 
 // SetPassword 由管理员直接设置用户口令（无需旧口令）。
 func (s *UserService) SetPassword(ctx context.Context, id uint64, newPwd string) error {
-	if len(newPwd) < 6 {
-		return errors.New("weak_password")
+	if !isStrongPassword(newPwd) {
+		return errors.New("weak_password: require >=8 chars with letters and digits")
 	}
 	u, err := s.FindByID(ctx, id)
 	if err != nil {
@@ -118,6 +123,27 @@ func (s *UserService) SetPassword(ctx context.Context, id uint64, newPwd string)
 	hash, _ := bcrypt.GenerateFromPassword([]byte(newPwd), bcrypt.DefaultCost)
 	u.Password = string(hash)
 	return s.Save(ctx, u)
+}
+
+// isStrongPassword 实现简单口令复杂度校验：
+// - 长度至少 8
+// - 同时包含至少一个字母与一个数字
+func isStrongPassword(p string) bool {
+	if len(p) < 8 {
+		return false
+	}
+	hasLetter, hasDigit := false, false
+	for _, r := range p {
+		if unicode.IsLetter(r) {
+			hasLetter = true
+		} else if unicode.IsDigit(r) {
+			hasDigit = true
+		}
+		if hasLetter && hasDigit {
+			return true
+		}
+	}
+	return false
 }
 
 // SetDevRole 设置/取消开发者角色。

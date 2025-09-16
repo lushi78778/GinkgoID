@@ -21,7 +21,15 @@
   </div>
   {{ if .redirect }}
     <script>
-      setTimeout(function(){ window.location = "{{ .redirect }}"; }, 800);
+      // 基本的 URL 白名单校验：仅允许 http/https 协议，避免 javascript: 等注入
+      (function(){
+        try{
+          var url = new URL("{{ .redirect }}", window.location.origin);
+          if(url.protocol === 'http:' || url.protocol === 'https:'){
+            setTimeout(function(){ window.location.href = url.href; }, 800);
+          }
+        }catch(e){ /* ignore bad url */ }
+      })();
     </script>
   {{ end }}
 </body>

@@ -22,26 +22,31 @@ type User struct {
 }
 
 type Client struct {
-	ID                               uint64    `gorm:"primaryKey;autoIncrement"`
-	ClientID                         string    `gorm:"size:190;uniqueIndex"`
-	SecretHash                       string    `gorm:"size:255"` // hashed secret if any
-	Name                             string    `gorm:"size:190"`
-	OwnerUserID                      uint64    `gorm:"index"`     // 拥有者用户ID（通过控制台注册时记录）
-	RedirectURIs                     string    `gorm:"type:text"` // JSON 数组字符串
-	GrantTypes                       string    `gorm:"size:255"`  // 以逗号分隔
-	ResponseTypes                    string    `gorm:"size:255"`
-	Scope                            string    `gorm:"size:255"`
-	TokenEndpointAuthMethod          string    `gorm:"size:64"` // 取值：client_secret_basic 或 none
-	SubjectType                      string    `gorm:"size:32"` // 取值：public 或 pairwise
-	SectorIdentifierURI              string    `gorm:"size:255"`
-	FrontchannelLogoutURI            string    `gorm:"size:255"`
-	BackchannelLogoutURI             string    `gorm:"size:255"`
-	PostLogoutRedirectURIs           string    `gorm:"type:text"` // JSON 数组字符串
-	RegistrationAccessTokenHash      string    `gorm:"size:255"`
-	RegistrationAccessTokenExpiresAt time.Time `gorm:"index"`
-	Approved                         bool      `gorm:"index"`
-	CreatedAt                        time.Time
-	UpdatedAt                        time.Time
+	ID                               uint64     `gorm:"primaryKey;autoIncrement"`
+	ClientID                         string     `gorm:"size:190;uniqueIndex"`
+	SecretHash                       string     `gorm:"size:255"`  // 客户端密钥哈希
+	Name                             string     `gorm:"size:190"`  // 客户端名称
+	OwnerUserID                      uint64     `gorm:"index"`     // 拥有者用户ID（通过控制台注册时记录）
+	RedirectURIs                     string     `gorm:"type:text"` // JSON 数组字符串
+	GrantTypes                       string     `gorm:"size:255"`  // 以逗号分隔
+	ResponseTypes                    string     `gorm:"size:255"`
+	Scope                            string     `gorm:"size:255"`
+	TokenEndpointAuthMethod          string     `gorm:"size:64"` // 取值：client_secret_basic 或 none
+	SubjectType                      string     `gorm:"size:32"` // 取值：public 或 pairwise
+	SectorIdentifierURI              string     `gorm:"size:255"`
+	FrontchannelLogoutURI            string     `gorm:"size:255"`
+	BackchannelLogoutURI             string     `gorm:"size:255"`
+	PostLogoutRedirectURIs           string     `gorm:"type:text"` // JSON 数组字符串
+	RegistrationAccessTokenHash      string     `gorm:"size:255"`
+	RegistrationAccessTokenExpiresAt *time.Time `gorm:"index"`
+	// 审批流相关字段
+	Status       int        `gorm:"index;default:0"` // 审批状态：0=待审批，1=已通过，2=已拒绝
+	ApprovedBy   uint64     `gorm:"index"`           // 审批人用户ID
+	ApprovedAt   *time.Time // 审批时间（待审为 NULL）
+	RejectReason string     `gorm:"size:255"` // 拒绝原因
+	Approved     bool       `gorm:"index"`    // 兼容旧逻辑，true=已通过
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type JWKKey struct {
@@ -78,6 +83,16 @@ type LogRecord struct {
 	ClientID    *string   `gorm:"index"`
 	Description string    `gorm:"type:longtext"`
 	IPAddress   string    `gorm:"size:64"`
+	// 扩展字段：请求与会话上下文
+	RequestID string `gorm:"size:64;index"`
+	SessionID string `gorm:"size:190;index"`
+	Method    string `gorm:"size:8"`
+	Path      string `gorm:"size:255"`
+	Status    int    `gorm:"index"`
+	UserAgent string `gorm:"size:255"`
+	Outcome   string `gorm:"size:16;index"` // success | failure
+	ErrorCode string `gorm:"size:64;index"`
+	ExtraJSON string `gorm:"type:longtext"`
 }
 
 // Consent 记录用户对某客户端的授权 scope，便于后续免提示。
@@ -92,5 +107,13 @@ type Consent struct {
 
 // autoMigrate 执行数据库自动迁移。
 func autoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&User{}, &Client{}, &JWKKey{}, &TokenRecord{}, &LogRecord{}, &Consent{})
+	if err := db.AutoMigrate(&User{}, &Client{}, &JWKKey{}, &TokenRecord{}, &LogRecord{}, &Consent{}); err != nil {
+		return err
+	}
+	// 保障字段可空（部分旧库可能保留 NOT NULL 约束）
+	// MySQL: 修改 registration_access_token_expires_at 与 approved_at 允许为 NULL
+	// 忽略错误以避免不同方言差异导致启动失败
+	_ = db.Exec("ALTER TABLE clients MODIFY COLUMN registration_access_token_expires_at DATETIME NULL").Error
+	_ = db.Exec("ALTER TABLE clients MODIFY COLUMN approved_at DATETIME NULL").Error
+	return nil
 }

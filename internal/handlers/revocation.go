@@ -3,6 +3,8 @@ package handlers
 import (
 	"time"
 
+	"ginkgoid/internal/services"
+
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
 )
@@ -43,7 +45,14 @@ func (h *Handler) revoke(c *gin.Context) {
 		_ = h.refreshSvc.Delete(c, token)
 		ip := c.ClientIP()
 		cid := cl.ClientID
-		h.logSvc.Write(c, "INFO", "REFRESH_REVOKED", nil, &cid, "refresh token revoked", ip)
+		h.logSvc.Write(c, "INFO", "REFRESH_REVOKED", nil, &cid, "refresh token revoked", ip, services.LogWriteOpts{
+			RequestID: c.GetString("request_id"),
+			Method:    c.Request.Method,
+			Path:      c.Request.URL.Path,
+			Status:    200,
+			UserAgent: c.Request.UserAgent(),
+			Outcome:   "success",
+		})
 		c.Status(200)
 		return
 	}
@@ -62,6 +71,13 @@ func (h *Handler) revoke(c *gin.Context) {
 	}
 	ip := c.ClientIP()
 	cid := cl.ClientID
-	h.logSvc.Write(c, "INFO", "ACCESS_REVOKED", nil, &cid, "access token revoked", ip)
+	h.logSvc.Write(c, "INFO", "ACCESS_REVOKED", nil, &cid, "access token revoked", ip, services.LogWriteOpts{
+		RequestID: c.GetString("request_id"),
+		Method:    c.Request.Method,
+		Path:      c.Request.URL.Path,
+		Status:    200,
+		UserAgent: c.Request.UserAgent(),
+		Outcome:   "success",
+	})
 	c.Status(200)
 }

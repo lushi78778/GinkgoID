@@ -35,6 +35,8 @@ func New(cfg config.Config, ks *services.KeyService, cs *services.ClientService,
 
 // RegisterRoutes 在 Gin 路由上挂载 OP 的全部端点（Discovery、JWKS、动态注册、授权、令牌、用户信息、注销等）。
 func (h *Handler) RegisterRoutes(r *gin.Engine) {
+	// 请求 ID 中间件，便于端端关联
+	r.Use(middlewares.RequestID())
 	// 模板：登录页、授权同意页、前端通道注销页
 	r.LoadHTMLGlob("web/templates/*")
 
