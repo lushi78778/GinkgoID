@@ -31,6 +31,7 @@ type Config struct {
 	Security     SecurityConfig
 	ACR          ACRConfig
 	Bootstrap    BootstrapConfig
+	DPoP         DPoPConfig
 }
 
 // ACRConfig 定义认证上下文（ACR/AMR）相关策略
@@ -115,6 +116,11 @@ type TokenConfig struct {
 	CodeLength         int
 	RegistrationPATTTL time.Duration
 	RequirePKCES256    bool
+}
+
+type DPoPConfig struct {
+	ReplayWindow time.Duration
+	ClockSkew    time.Duration
 }
 
 type RegistrationConfig struct {
@@ -202,6 +208,7 @@ func Load() Config {
 			return s
 		}(),
 		Bootstrap: BootstrapConfig{InitialAdmin: InitialAdminConfig{Enable: true, Username: "admin", Password: "123465", Email: "admin@example.com", Name: "Administrator"}},
+		DPoP:      DPoPConfig{ReplayWindow: 5 * time.Minute, ClockSkew: time.Minute},
 	}
 
 	// 2) 配置文件覆盖（若存在）
@@ -261,6 +268,7 @@ type fileModel struct {
 	Security     *fileSecurity     `yaml:"security" json:"security"`
 	ACR          *fileACR          `yaml:"acr" json:"acr"`
 	Bootstrap    *fileBootstrap    `yaml:"bootstrap" json:"bootstrap"`
+	DPoP         *fileDPoP         `yaml:"dpop" json:"dpop"`
 }
 
 type fileACR struct {
@@ -318,6 +326,10 @@ type fileLimits struct {
 	LoginPerMinute int    `yaml:"login_per_minute" json:"login_per_minute"`
 	TokenPerMinute int    `yaml:"token_per_minute" json:"token_per_minute"`
 	Window         string `yaml:"window" json:"window"`
+}
+type fileDPoP struct {
+	ReplayWindow string `yaml:"replay_window" json:"replay_window"`
+	ClockSkew    string `yaml:"clock_skew" json:"clock_skew"`
 }
 type fileDocs struct {
 	Enable   *bool  `yaml:"enable" json:"enable"`
@@ -495,6 +507,18 @@ func (fm *fileModel) apply(cfg *Config) {
 		if fm.Limits.Window != "" {
 			if d, err := time.ParseDuration(fm.Limits.Window); err == nil {
 				cfg.Limits.Window = d
+			}
+		}
+	}
+	if fm.DPoP != nil {
+		if fm.DPoP.ReplayWindow != "" {
+			if d, err := time.ParseDuration(fm.DPoP.ReplayWindow); err == nil {
+				cfg.DPoP.ReplayWindow = d
+			}
+		}
+		if fm.DPoP.ClockSkew != "" {
+			if d, err := time.ParseDuration(fm.DPoP.ClockSkew); err == nil {
+				cfg.DPoP.ClockSkew = d
 			}
 		}
 	}

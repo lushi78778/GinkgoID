@@ -13,24 +13,25 @@ import (
 
 // Handler 聚合所有依赖（配置、存储、服务）并注册所有 HTTP 路由。
 type Handler struct {
-	cfg        config.Config
-	keySvc     *services.KeyService
-	clientSvc  *services.ClientService
-	userSvc    *services.UserService
-	sessionSvc *services.SessionService
-	tokenSvc   *services.TokenService
-	codeSvc    *services.CodeService
-	consentSvc *services.ConsentService
-	refreshSvc *services.RefreshService
-	revokeSvc  *services.RevocationService
-	logSvc     *services.LogService
-	tokenRepo  *services.TokenRepo
-	rdb        *redis.Client
+	cfg          config.Config
+	keySvc       *services.KeyService
+	clientSvc    *services.ClientService
+	userSvc      *services.UserService
+	sessionSvc   *services.SessionService
+	tokenSvc     *services.TokenService
+	codeSvc      *services.CodeService
+	consentSvc   *services.ConsentService
+	refreshSvc   *services.RefreshService
+	revokeSvc    *services.RevocationService
+	logSvc       *services.LogService
+	tokenRepo    *services.TokenRepo
+	rdb          *redis.Client
+	dpopVerifier *services.DPoPVerifier
 }
 
 // New 构造 Handler，将各领域服务注入，用于后续路由注册与处理。
-func New(cfg config.Config, ks *services.KeyService, cs *services.ClientService, us *services.UserService, ss *services.SessionService, ts *services.TokenService, codes *services.CodeService, cons *services.ConsentService, rs *services.RefreshService, rv *services.RevocationService, ls *services.LogService, tr *services.TokenRepo, rdb *redis.Client) *Handler {
-	return &Handler{cfg: cfg, keySvc: ks, clientSvc: cs, userSvc: us, sessionSvc: ss, tokenSvc: ts, codeSvc: codes, consentSvc: cons, refreshSvc: rs, revokeSvc: rv, logSvc: ls, tokenRepo: tr, rdb: rdb}
+func New(cfg config.Config, ks *services.KeyService, cs *services.ClientService, us *services.UserService, ss *services.SessionService, ts *services.TokenService, codes *services.CodeService, cons *services.ConsentService, rs *services.RefreshService, rv *services.RevocationService, ls *services.LogService, tr *services.TokenRepo, rdb *redis.Client, dv *services.DPoPVerifier) *Handler {
+	return &Handler{cfg: cfg, keySvc: ks, clientSvc: cs, userSvc: us, sessionSvc: ss, tokenSvc: ts, codeSvc: codes, consentSvc: cons, refreshSvc: rs, revokeSvc: rv, logSvc: ls, tokenRepo: tr, rdb: rdb, dpopVerifier: dv}
 }
 
 // RegisterRoutes 在 Gin 路由上挂载 OP 的全部端点（Discovery、JWKS、动态注册、授权、令牌、用户信息、注销等）。

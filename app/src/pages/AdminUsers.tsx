@@ -1,9 +1,10 @@
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
+import { DataTable } from '@/components/ui/data-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { toast } from 'sonner'
 import { useEffect, useState } from 'react'
 
@@ -15,13 +16,16 @@ export default function AdminUsers() {
   const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ username:'', password:'', email:'', name:'', is_admin:false, is_dev:false })
+  const [loading, setLoading] = useState(false)
 
   const load = async () => {
+    setLoading(true)
     const me = await fetch('/api/me', { credentials:'include' }).then(r=>r.json()).catch(()=>null)
-    if (!me?.is_admin) { setMeAdmin(false); return }
+    if (!me?.is_admin) { setMeAdmin(false); setLoading(false); return }
     setMeAdmin(true)
     const list = await fetch('/api/users', { credentials:'include' }).then(r=>r.json()).catch(()=>[])
     setUsers(list)
+    setLoading(false)
   }
 
   useEffect(() => { load() }, [])
@@ -63,6 +67,32 @@ export default function AdminUsers() {
       </div>
     )
   }
+
+  const columns: ColumnDef<User>[] = [
+    { accessorKey: 'id', header: 'ID', cell: ({ getValue }) => <span>{getValue<number>()}</span> },
+    { accessorKey: 'username', header: '用户名' },
+    { accessorKey: 'name', header: '姓名' },
+    { accessorKey: 'email', header: '邮箱' },
+    { accessorKey: 'is_admin', header: '管理员', cell: ({ row }) => (row.original.is_admin ? '是' : '否') },
+    { accessorKey: 'is_dev', header: '开发者', cell: ({ row }) => (row.original.is_dev ? '是' : '否') },
+    {
+      id: 'actions',
+      header: '操作',
+      cell: ({ row }) => {
+        const u = row.original
+        return (
+          <div className="space-x-2">
+            <Button onClick={() => toggleAdmin(u)} variant={u.is_admin ? 'destructive' : 'default'}>
+              {u.is_admin ? '取消管理员' : '设为管理员'}
+            </Button>
+            <Button onClick={() => toggleDev(u)} variant={u.is_dev ? 'destructive' : 'outline'}>
+              {u.is_dev ? '取消开发者' : '设为开发者'}
+            </Button>
+          </div>
+        )
+      },
+    },
+  ]
 
   return (
     <div className="container py-10 space-y-6">
@@ -109,40 +139,15 @@ export default function AdminUsers() {
             </DialogContent>
           </Dialog>
         </div>
-        <div className="overflow-x-auto mt-4">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>用户名</TableHead>
-                <TableHead>姓名</TableHead>
-                <TableHead>邮箱</TableHead>
-                <TableHead>管理员</TableHead>
-                <TableHead>开发者</TableHead>
-                <TableHead>操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map(u => (
-                <TableRow key={u.id}>
-                  <TableCell>{u.id}</TableCell>
-                  <TableCell>{u.username}</TableCell>
-                  <TableCell>{u.name}</TableCell>
-                  <TableCell>{u.email}</TableCell>
-                  <TableCell>{u.is_admin ? '是' : '否'}</TableCell>
-                  <TableCell>{u.is_dev ? '是' : '否'}</TableCell>
-                  <TableCell className="space-x-2">
-                    <Button onClick={()=>toggleAdmin(u)} variant={u.is_admin ? 'destructive' : 'default'}>
-                      {u.is_admin ? '取消管理员' : '设为管理员'}
-                    </Button>
-                    <Button onClick={()=>toggleDev(u)} variant={u.is_dev ? 'destructive' : 'outline'}>
-                      {u.is_dev ? '取消开发者' : '设为开发者'}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="mt-4">
+          <DataTable<User>
+            columns={columns}
+            data={users}
+            rowKey={(r)=>r.id}
+            searchable
+            searchPlaceholder="搜索用户名/姓名/邮箱"
+            loading={loading}
+          />
         </div>
       </div>
     </div>

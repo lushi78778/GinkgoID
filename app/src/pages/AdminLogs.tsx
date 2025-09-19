@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
-import { Table } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { DataTable } from '@/components/ui/data-table'
+import type { ColumnDef } from '@tanstack/react-table'
 
 interface LogItem {
   ts: number
@@ -58,6 +59,47 @@ export default function AdminLogs() {
 
   useEffect(()=>{ fetchLogs() },[])
 
+  const columns: ColumnDef<LogItem>[] = [
+    { header: '时间', accessorKey: 'ts', cell: ({ getValue }) => new Date((getValue<number>()||0)*1000).toLocaleString() },
+    { header: '级别', accessorKey: 'level' },
+    { header: '事件', accessorKey: 'event' },
+    { header: 'request_id', accessorKey: 'request_id', cell: ({ row }) => row.original.request_id ? (
+      <button
+        className="underline text-blue-600 hover:text-blue-800"
+        onClick={()=> navigator.clipboard.writeText(row.original.request_id!)}
+        title="点击复制"
+      >{row.original.request_id}</button>
+    ) : '' },
+    { header: 'outcome', accessorKey: 'outcome' },
+    { header: 'error_code', accessorKey: 'error_code' },
+    { header: 'method', accessorKey: 'method' },
+    { header: 'path', accessorKey: 'path', cell: ({ row }) => (
+      <span className="max-w-[260px] truncate inline-block" title={row.original.path}>{row.original.path ?? ''}</span>
+    ) },
+    { header: 'status', accessorKey: 'status' },
+    { header: 'UA', accessorKey: 'ua', cell: ({ row }) => (
+      <span className="max-w-[260px] truncate inline-block" title={row.original.ua}>{row.original.ua ?? ''}</span>
+    ) },
+    { header: '用户', accessorKey: 'user_id' },
+    { header: '客户端', accessorKey: 'client_id' },
+    { header: '描述', accessorKey: 'desc', cell: ({ row }) => (
+      <span className="max-w-[320px] truncate inline-block" title={row.original.desc}>{row.original.desc}</span>
+    ) },
+    { header: 'Extra', accessorKey: 'extra', cell: ({ row }) => {
+      const it = row.original
+      try {
+        const e = typeof it.extra === 'string' ? JSON.parse(it.extra) : it.extra
+        const req = e?.required ? `req:${Array.isArray(e.required)?e.required.join('|'):e.required}`:''
+        const sac = e?.session_acr?`acr:${e.session_acr}`:''
+        const min = e?.min_acr?`min:${e.min_acr}`:''
+        const parts = [req,sac,min].filter(Boolean)
+        const text = parts.length? parts.join(' '): ''
+        return <span className="max-w-[320px] text-xs text-slate-400 truncate inline-block" title={JSON.stringify(it.extra)}>{text}</span>
+      } catch { return <span className="text-xs text-slate-400"></span> }
+    } },
+    { header: 'IP', accessorKey: 'ip' },
+  ]
+
   return (
     <Card className="w-full max-w-5xl mx-auto mt-8 p-4">
       <h2 className="text-xl font-bold mb-4">审计日志</h2>
@@ -75,67 +117,13 @@ export default function AdminLogs() {
         <Input placeholder="status" value={status} onChange={e=>setStatus(e.target.value)} className="w-24"/>
         <Button onClick={fetchLogs}>查询</Button>
       </div>
-      <Table>
-        <thead>
-          <tr>
-            <th>时间</th>
-            <th>级别</th>
-            <th>事件</th>
-            <th>request_id</th>
-            <th>outcome</th>
-            <th>error_code</th>
-            <th>method</th>
-            <th>path</th>
-            <th>status</th>
-            <th>UA</th>
-            <th>用户</th>
-            <th>客户端</th>
-            <th>描述</th>
-            <th>Extra</th>
-            <th>IP</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it, idx)=> (
-            <tr key={idx}>
-              <td>{new Date(it.ts * 1000).toLocaleString()}</td>
-              <td>{it.level}</td>
-              <td>{it.event}</td>
-              <td>
-                {it.request_id ? (
-                  <button
-                    className="underline text-blue-600 hover:text-blue-800"
-                    onClick={()=> navigator.clipboard.writeText(it.request_id!)}
-                    title="点击复制"
-                  >{it.request_id}</button>
-                ) : ''}
-              </td>
-              <td>{it.outcome ?? ''}</td>
-              <td>{it.error_code ?? ''}</td>
-              <td>{it.method ?? ''}</td>
-              <td className="max-w-[260px] truncate" title={it.path}>{it.path ?? ''}</td>
-              <td>{it.status ?? ''}</td>
-              <td className="max-w-[260px] truncate" title={it.ua}>{it.ua ?? ''}</td>
-              <td>{it.user_id ?? ''}</td>
-              <td>{it.client_id ?? ''}</td>
-              <td className="max-w-[320px] truncate" title={it.desc}>{it.desc}</td>
-              <td className="max-w-[320px] text-xs text-slate-400 truncate" title={JSON.stringify(it.extra)}>
-                {it.extra ? (()=>{
-                  try {
-                    const e = typeof it.extra === 'string' ? JSON.parse(it.extra) : it.extra
-                    const req = e.required ? `req:${Array.isArray(e.required)?e.required.join('|'):e.required}`:''
-                    const sac = e.session_acr?`acr:${e.session_acr}`:''
-                    const min = e.min_acr?`min:${e.min_acr}`:''
-                    const parts = [req,sac,min].filter(Boolean)
-                    return parts.length? parts.join(' '): ''
-                  } catch { return '' }
-                })():''}
-              </td>
-              <td>{it.ip}</td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
+      <DataTable<LogItem>
+        columns={columns}
+        data={items}
+        rowKey={(r, i)=> `${r.ts}-${i}`}
+        searchable
+        searchPlaceholder="搜索事件/路径/UA/描述"
+      />
     </Card>
   )
 }

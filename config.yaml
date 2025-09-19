@@ -99,6 +99,12 @@ security:
     max_age: 31536000       # 秒
     include_subdomains: true
 
+dpop:
+  # DPoP 重放缓存窗口；Proof 的 iat 超过该窗口将被拒绝
+  replay_window: 5m
+  # 允许的时钟偏移（iat 可比当前时间多出/落后此值）
+  clock_skew: 1m
+
 ## 首次建表时的一次性引导数据（仅在 users 表不存在且首次迁移时生效）
 bootstrap:
   initial_admin:

@@ -97,6 +97,7 @@ func main() {
 	revokeSvc := services.NewRevocationService(rdb)
 	logSvc := services.NewLogService(db)
 	tokenRepo := services.NewTokenRepo(db)
+	dpopVerifier := services.NewDPoPVerifier(rdb, cfg.DPoP.ReplayWindow, cfg.DPoP.ClockSkew)
 
 	// HTTP 路由与中间件
 	if cfg.Env == "prod" {
@@ -111,7 +112,7 @@ func main() {
 
 	// 装载 HTTP 处理器
 	h := handlers.New(
-		cfg, keySvc, clientSvc, userSvc, sessionSvc, tokenSvc, codeSvc, consentSvc, refreshSvc, revokeSvc, logSvc, tokenRepo, rdb,
+		cfg, keySvc, clientSvc, userSvc, sessionSvc, tokenSvc, codeSvc, consentSvc, refreshSvc, revokeSvc, logSvc, tokenRepo, rdb, dpopVerifier,
 	)
 	h.RegisterRoutes(router)
 	// 用户管理 SPA（/app）静态资源与入口页

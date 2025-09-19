@@ -153,14 +153,10 @@ func (h *Handler) token(c *gin.Context) {
 	// DPoP: 若请求包含 DPoP-Proof，则尝试验证并生成 jkt
 	var cnfJKT string
 	if proof := c.GetHeader("DPoP"); proof != "" {
-		if jwk, err := services.ExtractDPoPJWK(proof); err == nil {
-			if jkt, jerr := services.CalcJKT(jwk); jerr == nil {
-				// 验证 proof（基础版）
-				_ = services.VerifyDPoPProof(proof, c.Request.Method, c.Request.URL.String())
-				cnfJKT = jkt
-			}
-		} else {
-			h.logSvc.Write(c, "WARN", "DPoP_INVALID", nil, &cl.ClientID, "invalid dpop proof", c.ClientIP(), services.LogWriteOpts{
+		res, err := h.dpopVerifier.Verify(c.Request.Context(), proof, c.Request.Method, c.Request.URL.String())
+		if err != nil {
+			cid := clientID
+			h.logSvc.Write(c, "WARN", "DPoP_INVALID", nil, &cid, "invalid dpop proof", c.ClientIP(), services.LogWriteOpts{
 				RequestID: c.GetString("request_id"),
 				Method:    c.Request.Method,
 				Path:      c.Request.URL.Path,
@@ -168,8 +164,13 @@ func (h *Handler) token(c *gin.Context) {
 				UserAgent: c.Request.UserAgent(),
 				Outcome:   "failure",
 				ErrorCode: "invalid_dpop",
+				Extra:     map[string]any{"error": err.Error()},
 			})
+			c.Header("WWW-Authenticate", "DPoP error=\"invalid_dpop\"")
+			c.JSON(400, gin.H{"error": "invalid_dpop"})
+			return
 		}
+		cnfJKT = res.JKT
 	}
 	at, exp, jti, err := h.tokenSvc.BuildAccessTokenJWT(cl.ClientID, ac.UserID, subject, ac.Scope, ac.SID, cnfJKT)
 	if err != nil {

@@ -73,7 +73,7 @@ export default function Profile() {
         </CardContent>
       </Card>
 
-      <Card className="max-w-md">
+      <Card>
         <CardHeader>
           <CardTitle>修改口令</CardTitle>
         </CardHeader>

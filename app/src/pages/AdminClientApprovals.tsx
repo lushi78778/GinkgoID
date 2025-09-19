@@ -2,9 +2,11 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Table } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
+import { confirm } from "@/components/ui/confirm";
 // 兼容 shadcn/ui 的 toast 组件导入
 // 兼容本地 api 封装（无默认导出）
 import { api, apiJSON } from "../lib/api";
@@ -30,7 +32,6 @@ const AdminClientApprovals: React.FC = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // 获取待审批客户端列表
-  // 获取待审批客户端列表
   const fetchPending = async () => {
     setLoading(true);
     try {
@@ -48,11 +49,12 @@ const AdminClientApprovals: React.FC = () => {
   }, []);
 
   // 审批通过
-  // 审批通过
   const handleApprove = async (client_id: string) => {
+    const ok = await confirm({ title: '确认通过', content: `确定通过客户端 ${client_id} 的申请？` })
+    if (!ok) return
     try {
       await api(`/api/admin/clients/${client_id}/approve`, { method: 'POST' });
-  alert(`审批通过：客户端 ${client_id} 已通过`);
+      alert(`审批通过：客户端 ${client_id} 已通过`);
       fetchPending();
     } catch (e: any) {
       alert("审批未成功: " + (e.message || "操作失败"));
@@ -86,44 +88,34 @@ const AdminClientApprovals: React.FC = () => {
     }
   };
 
+  const columns: ColumnDef<PendingClient>[] = [
+    { accessorKey: 'client_id', header: '客户端ID' },
+    { accessorKey: 'client_name', header: '名称' },
+    { accessorKey: 'owner_user_id', header: '注册人ID' },
+    { accessorKey: 'created_at', header: '注册时间', cell: ({ getValue }) => new Date((getValue<number>() || 0) * 1000).toLocaleString() },
+    {
+      id: 'actions',
+      header: '操作',
+      cell: ({ row }) => (
+        <div className="space-x-2">
+          <Button size="sm" onClick={() => handleApprove(row.original.client_id)}>通过</Button>
+          <Button size="sm" variant="destructive" onClick={() => openRejectDialog(row.original.client_id)}>拒绝</Button>
+        </div>
+      )
+    }
+  ]
 
   return (
-    <Card className="w-full max-w-4xl mx-auto mt-8">
+    <Card className="w-full max-w-4xl mx-auto mt-8 p-4">
       <h2 className="text-xl font-bold mb-4">待审批客户端</h2>
-      <Table>
-        <thead>
-          <tr>
-            <th>客户端ID</th>
-            <th>名称</th>
-            <th>注册人ID</th>
-            <th>注册时间</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pending.length === 0 && !loading && (
-            <tr>
-              <td colSpan={5} className="text-center text-muted-foreground py-8">暂无待审批客户端</td>
-            </tr>
-          )}
-          {pending.map((cl) => (
-            <tr key={cl.client_id}>
-              <td>{cl.client_id}</td>
-              <td>{cl.client_name}</td>
-              <td>{cl.owner_user_id}</td>
-              <td>{new Date(cl.created_at * 1000).toLocaleString()}</td>
-              <td>
-                <Button size="sm" className="mr-2" onClick={() => handleApprove(cl.client_id)}>
-                  通过
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => openRejectDialog(cl.client_id)}>
-                  拒绝
-                </Button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
+      <DataTable<PendingClient>
+        columns={columns}
+        data={pending}
+        rowKey={(r)=>r.client_id}
+        searchable
+        searchPlaceholder="搜索客户端ID/名称"
+        loading={loading}
+      />
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>

@@ -60,7 +60,7 @@ func (h *Handler) userinfo(c *gin.Context) {
 	// 最小 DPoP 校验：当使用 DPoP 授权方案时，验证请求头 DPoP 与 access_token 的 cnf.jkt 一致
 	if strings.EqualFold(scheme, "DPoP") {
 		proof := c.GetHeader("DPoP")
-		jwk, perr := services.ExtractDPoPJWK(proof)
+		res, perr := h.dpopVerifier.Verify(c.Request.Context(), proof, c.Request.Method, c.Request.URL.String())
 		if perr != nil {
 			h.logSvc.Write(c, "WARN", "DPoP_MISSING_OR_INVALID", nil, nil, "userinfo dpop missing/invalid", c.ClientIP(), services.LogWriteOpts{
 				RequestID: c.GetString("request_id"),
@@ -70,29 +70,28 @@ func (h *Handler) userinfo(c *gin.Context) {
 				UserAgent: c.Request.UserAgent(),
 				Outcome:   "failure",
 				ErrorCode: "invalid_dpop",
+				Extra:     map[string]any{"error": perr.Error()},
 			})
 			c.Header("WWW-Authenticate", "DPoP error=\"invalid_dpop\"")
 			c.JSON(401, gin.H{"error": "invalid_token"})
 			return
 		}
-		_ = services.VerifyDPoPProof(proof, c.Request.Method, c.Request.URL.String())
 		if cnf, ok := claims["cnf"].(map[string]any); ok {
 			if jktExpected, ok2 := cnf["jkt"].(string); ok2 && jktExpected != "" {
-				if jkt, e := services.CalcJKT(jwk); e == nil {
-					if jkt != jktExpected {
-						h.logSvc.Write(c, "WARN", "DPoP_JKT_MISMATCH", nil, nil, "userinfo jkt mismatch", c.ClientIP(), services.LogWriteOpts{
-							RequestID: c.GetString("request_id"),
-							Method:    c.Request.Method,
-							Path:      c.Request.URL.Path,
-							Status:    401,
-							UserAgent: c.Request.UserAgent(),
-							Outcome:   "failure",
-							ErrorCode: "invalid_dpop",
-						})
-						c.Header("WWW-Authenticate", "DPoP error=\"invalid_dpop\"")
-						c.JSON(401, gin.H{"error": "invalid_token"})
-						return
-					}
+				if res.JKT != jktExpected {
+					h.logSvc.Write(c, "WARN", "DPoP_JKT_MISMATCH", nil, nil, "userinfo jkt mismatch", c.ClientIP(), services.LogWriteOpts{
+						RequestID: c.GetString("request_id"),
+						Method:    c.Request.Method,
+						Path:      c.Request.URL.Path,
+						Status:    401,
+						UserAgent: c.Request.UserAgent(),
+						Outcome:   "failure",
+						ErrorCode: "invalid_dpop",
+						Extra:     map[string]any{"expected": jktExpected, "actual": res.JKT},
+					})
+					c.Header("WWW-Authenticate", "DPoP error=\"invalid_dpop\"")
+					c.JSON(401, gin.H{"error": "invalid_token"})
+					return
 				}
 			}
 		}
