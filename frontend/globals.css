@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0b1020;
+  --card: #ffffff;
+  --txt: #e6e8ef;
+  --muted: #475569;
+  --pri: #6366f1;
+  --pri-h: #4f46e5;
+  --radius: 10px;
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #111827;
+  --primary-foreground: #f9fafb;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #111827;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: #111827;
+  --destructive: #ef4444;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #93c5fd;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f6f7fb;
+    --card: #ffffff;
+    --txt: #0f172a;
+    --muted: #475569;
+    --pri: #4f46e5;
+    --pri-h: #4338ca;
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--txt);
+}
+
+.container {
+  @apply mx-auto max-w-5xl px-4;
+}
+
+.card {
+  @apply rounded-xl border shadow-md p-6 bg-white/80 backdrop-blur;
+  background: var(--card);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors;
+  background: var(--pri);
+}
+
+.btn:hover {
+  background: var(--pri-h);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground min-h-screen;
+  }
+}

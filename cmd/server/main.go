@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -115,7 +116,7 @@ func main() {
 		cfg, keySvc, clientSvc, userSvc, sessionSvc, tokenSvc, codeSvc, consentSvc, refreshSvc, revokeSvc, logSvc, tokenRepo, rdb, dpopVerifier,
 	)
 	h.RegisterRoutes(router)
-	// 用户管理 SPA（/app）静态资源与入口页
+	// 用户管理 SPA 静态资源与入口页（Next.js 导出的 web/app）
 	if p := config.FirstExisting("web/app/index.html", "../web/app/index.html", "../../web/app/index.html"); p != "" {
 		// 计算 assets 目录位置
 		var base string
@@ -124,15 +125,48 @@ func main() {
 		} else {
 			base = p
 		}
-		router.Static("/app/assets", base+"/assets")
-		router.GET("/app", func(c *gin.Context) { c.File(p) })
-		// 使用 NoRoute 处理 /app/* 的前端路由，避免与 /app/assets 冲突
+		router.Static("/assets", base+"/assets")
+		if info, err := os.Stat(filepath.Join(base, "_next")); err == nil && info.IsDir() {
+			router.Static("/_next", filepath.Join(base, "_next"))
+		}
+		serveFile := func(c *gin.Context, requestPath string) {
+			rel := strings.TrimPrefix(requestPath, "/")
+			candidate := filepath.Join(base, rel)
+			candidate = filepath.Clean(candidate)
+			if !strings.HasPrefix(candidate, base) {
+				c.Status(http.StatusNotFound)
+				return
+			}
+			if info, err := os.Stat(candidate); err == nil {
+				if info.IsDir() {
+					idx := filepath.Join(candidate, "index.html")
+					if htmlInfo, err := os.Stat(idx); err == nil && !htmlInfo.IsDir() {
+						c.File(idx)
+						return
+					}
+				} else {
+					c.File(candidate)
+					return
+				}
+			}
+			if info, err := os.Stat(filepath.Join(base, "404/index.html")); err == nil && !info.IsDir() {
+				c.File(filepath.Join(base, "404/index.html"))
+				return
+			}
+			c.File(p)
+		}
+		router.GET("/", func(c *gin.Context) { c.File(p) })
 		router.NoRoute(func(c *gin.Context) {
 			path := c.Request.URL.Path
-			if path == "/app" || strings.HasPrefix(path, "/app/") {
+			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/metrics") || strings.HasPrefix(path, "/healthz") {
+				c.Status(http.StatusNotFound)
+				return
+			}
+			if path == "/" {
 				c.File(p)
 				return
 			}
+			serveFile(c, path)
 		})
 	}
 	// OpenAPI 文档（Stoplight Elements）与静态规范（受配置 docs.enable 控制）

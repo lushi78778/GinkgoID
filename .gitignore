@@ -10,10 +10,10 @@ bin/
 dist/
 
 # Node artifacts
-app/node_modules/
-app/.vite/
-app/dist/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/test-results/
 
 # Logs
 *.log
-
