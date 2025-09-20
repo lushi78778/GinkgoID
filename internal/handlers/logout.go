@@ -68,7 +68,7 @@ func (h *Handler) logout(c *gin.Context) {
 		}
 	}
 	ip := c.ClientIP()
-	h.logSvc.Write(c, "INFO", "USER_LOGOUT", nil, nil, "logout", ip, services.LogWriteOpts{
+	_ = h.logSvc.Write(c, "INFO", "USER_LOGOUT", nil, nil, "logout", ip, services.LogWriteOpts{
 		RequestID: c.GetString("request_id"),
 		SessionID: sid,
 		Method:    c.Request.Method,

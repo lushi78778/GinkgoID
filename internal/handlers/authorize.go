@@ -52,7 +52,7 @@ func (h *Handler) authorize(c *gin.Context) {
 	if !(rt0 == "code" || rt0 == "code id_token" || rt0 == "id_token code") {
 		metrics.AuthorizeErrors.WithLabelValues("unsupported_response_type").Inc()
 		cid := clientID
-		h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", nil, &cid, "unsupported_response_type", c.ClientIP(), services.LogWriteOpts{
+		_ = h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", nil, &cid, "unsupported_response_type", c.ClientIP(), services.LogWriteOpts{
 			RequestID: c.GetString("request_id"),
 			SessionID: readSessionCookie(c, h.cfg.Session.CookieName),
 			Method:    c.Request.Method,
@@ -69,7 +69,7 @@ func (h *Handler) authorize(c *gin.Context) {
 	if !strings.Contains(" "+scope+" ", " openid ") {
 		metrics.AuthorizeErrors.WithLabelValues("invalid_scope").Inc()
 		cid := clientID
-		h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", nil, &cid, "invalid_scope", c.ClientIP(), services.LogWriteOpts{
+		_ = h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", nil, &cid, "invalid_scope", c.ClientIP(), services.LogWriteOpts{
 			RequestID: c.GetString("request_id"),
 			SessionID: readSessionCookie(c, h.cfg.Session.CookieName),
 			Method:    c.Request.Method,
@@ -104,7 +104,7 @@ func (h *Handler) authorize(c *gin.Context) {
 	if sess == nil || strings.Contains(prompt, "login") {
 		if prompt == "none" {
 			metrics.AuthorizeErrors.WithLabelValues("login_required").Inc()
-			h.logSvc.Write(c, "WARN", "AUTHORIZE_PROMPT_NONE_DENIED", nil, &cl.ClientID, "prompt=none but login required", c.ClientIP(), services.LogWriteOpts{
+			_ = h.logSvc.Write(c, "WARN", "AUTHORIZE_PROMPT_NONE_DENIED", nil, &cl.ClientID, "prompt=none but login required", c.ClientIP(), services.LogWriteOpts{
 				RequestID: c.GetString("request_id"),
 				SessionID: sid,
 				Method:    c.Request.Method,
@@ -153,7 +153,7 @@ func (h *Handler) authorize(c *gin.Context) {
 			if minACR != "" {
 				extra["min_acr"] = minACR
 			}
-			h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", &sess.UserID, &cl.ClientID, reason, c.ClientIP(), services.LogWriteOpts{
+			_ = h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", &sess.UserID, &cl.ClientID, reason, c.ClientIP(), services.LogWriteOpts{
 				RequestID: c.GetString("request_id"),
 				SessionID: sess.SID,
 				Method:    c.Request.Method,
@@ -181,7 +181,7 @@ func (h *Handler) authorize(c *gin.Context) {
 			if time.Since(sess.AuthTime) > time.Duration(sec)*time.Second {
 				if prompt == "none" {
 					metrics.AuthorizeErrors.WithLabelValues("login_required_stale").Inc()
-					h.logSvc.Write(c, "WARN", "AUTHORIZE_PROMPT_NONE_STALE", &sess.UserID, &cl.ClientID, "max_age exceeded with prompt=none", c.ClientIP(), services.LogWriteOpts{
+					_ = h.logSvc.Write(c, "WARN", "AUTHORIZE_PROMPT_NONE_STALE", &sess.UserID, &cl.ClientID, "max_age exceeded with prompt=none", c.ClientIP(), services.LogWriteOpts{
 						RequestID: c.GetString("request_id"),
 						SessionID: sess.SID,
 						Method:    c.Request.Method,
@@ -222,7 +222,7 @@ func (h *Handler) authorize(c *gin.Context) {
 	}
 	if codeChallenge == "" {
 		metrics.AuthorizeErrors.WithLabelValues("pkce_missing").Inc()
-		h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", &sess.UserID, &cl.ClientID, "pkce missing", c.ClientIP(), services.LogWriteOpts{
+		_ = h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", &sess.UserID, &cl.ClientID, "pkce missing", c.ClientIP(), services.LogWriteOpts{
 			RequestID: c.GetString("request_id"),
 			SessionID: sess.SID,
 			Method:    c.Request.Method,
@@ -237,7 +237,7 @@ func (h *Handler) authorize(c *gin.Context) {
 		return
 	}
 	if h.cfg.Token.RequirePKCES256 && strings.ToUpper(codeChallengeMethod) != "S256" {
-		h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", &sess.UserID, &cl.ClientID, "pkce s256 required", c.ClientIP(), services.LogWriteOpts{
+		_ = h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", &sess.UserID, &cl.ClientID, "pkce s256 required", c.ClientIP(), services.LogWriteOpts{
 			RequestID: c.GetString("request_id"),
 			SessionID: sess.SID,
 			Method:    c.Request.Method,
@@ -261,7 +261,7 @@ func (h *Handler) authorize(c *gin.Context) {
 	if rt == "code id_token" || rt == "id_token code" {
 		if nonce == "" {
 			metrics.AuthorizeErrors.WithLabelValues("nonce_missing").Inc()
-			h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", &sess.UserID, &cl.ClientID, "nonce missing for hybrid", c.ClientIP(), services.LogWriteOpts{
+			_ = h.logSvc.Write(c, "WARN", "AUTHORIZE_ERROR", &sess.UserID, &cl.ClientID, "nonce missing for hybrid", c.ClientIP(), services.LogWriteOpts{
 				RequestID: c.GetString("request_id"),
 				SessionID: sess.SID,
 				Method:    c.Request.Method,
@@ -324,7 +324,7 @@ func (h *Handler) authorize(c *gin.Context) {
 			b.WriteString("<noscript><button type=\\\"submit\\\">Continue</button></noscript></form><script>document.forms[0].submit();</script></body></html>")
 			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(b.String()))
 			// 成功返回（Hybrid form_post）
-			h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code+id_token", c.ClientIP(), services.LogWriteOpts{
+			_ = h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code+id_token", c.ClientIP(), services.LogWriteOpts{
 				RequestID: c.GetString("request_id"),
 				SessionID: sess.SID,
 				Method:    c.Request.Method,
@@ -343,7 +343,7 @@ func (h *Handler) authorize(c *gin.Context) {
 			}
 			v.Set("id_token", idt)
 			c.Redirect(http.StatusFound, redirectURI+"#"+v.Encode())
-			h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code+id_token", c.ClientIP(), services.LogWriteOpts{
+			_ = h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code+id_token", c.ClientIP(), services.LogWriteOpts{
 				RequestID: c.GetString("request_id"),
 				SessionID: sess.SID,
 				Method:    c.Request.Method,
@@ -362,7 +362,7 @@ func (h *Handler) authorize(c *gin.Context) {
 			}
 			v.Set("id_token", idt)
 			c.Redirect(http.StatusFound, redirectURI+"#"+v.Encode())
-			h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code+id_token", c.ClientIP(), services.LogWriteOpts{
+			_ = h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code+id_token", c.ClientIP(), services.LogWriteOpts{
 				RequestID: c.GetString("request_id"),
 				SessionID: sess.SID,
 				Method:    c.Request.Method,
@@ -390,7 +390,7 @@ func (h *Handler) authorize(c *gin.Context) {
 			}
 			b.WriteString("<noscript><button type=\\\"submit\\\">Continue</button></noscript></form><script>document.forms[0].submit();</script></body></html>")
 			c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(b.String()))
-			h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code", c.ClientIP(), services.LogWriteOpts{
+			_ = h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code", c.ClientIP(), services.LogWriteOpts{
 				RequestID: c.GetString("request_id"),
 				SessionID: sess.SID,
 				Method:    c.Request.Method,
@@ -411,7 +411,7 @@ func (h *Handler) authorize(c *gin.Context) {
 			loc += "&state=" + urlQueryEscape(state)
 		}
 		c.Redirect(http.StatusFound, loc)
-		h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code", c.ClientIP(), services.LogWriteOpts{
+		_ = h.logSvc.Write(c, "INFO", "AUTHORIZE_SUCCESS", &sess.UserID, &cl.ClientID, "issued code", c.ClientIP(), services.LogWriteOpts{
 			RequestID: c.GetString("request_id"),
 			SessionID: sess.SID,
 			Method:    c.Request.Method,

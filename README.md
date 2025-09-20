@@ -54,8 +54,9 @@
   - mysql.redis, redis.addr
   - crypto.id_token_alg（RS256/ES256）
   - crypto.key_encryption_key（可选，本地对称加密密钥）
-  - token、session、limits、registration 等详见 config.yaml 示例
-  - acr（可选）：
+- token、session、limits、registration 等详见 config.yaml 示例
+- token.id_token_ttl 可单独配置 ID Token 有效期（默认 15m；为空时回落到 access_token_ttl）
+- acr（可选）：
     - minimum：最低可接受 ACR（如 urn:op:auth:pwd / urn:op:auth:otp）
     - suggest_mfa：true 时在登录页提示建议开启多因素
 示例：通过 `config.yaml` 设置 `crypto.key_encryption_key`
@@ -65,6 +66,9 @@
     id_token_alg: RS256
     key_encryption_key: "your-32-byte-random-string-here"
   ```
+  - DPoP：
+    - 可通过 `dpop.replay_window` 与 `dpop.clock_skew` 调整重放检测窗口与容忍的时钟偏移
+    - 刷新令牌轮换时同样要求提供匹配的 DPoP-Proof
   - ACR 策略示例：
   ```yaml
   acr:

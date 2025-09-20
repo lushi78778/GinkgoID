@@ -136,8 +136,12 @@ func (v *DPoPVerifier) Verify(ctx context.Context, proof, htm, htu string) (*DPo
 		return nil, errors.New("dpop_jti_missing")
 	}
 	if v.store != nil {
+		ttl := v.replayWindow + v.skew
+		if ttl <= 0 {
+			ttl = v.replayWindow
+		}
 		key := fmt.Sprintf("dpop:jti:%s", jti)
-		set, serr := v.store.SetNX(ctx, key, 1, v.replayWindow).Result()
+		set, serr := v.store.SetNX(ctx, key, 1, ttl).Result()
 		if serr != nil {
 			return nil, serr
 		}

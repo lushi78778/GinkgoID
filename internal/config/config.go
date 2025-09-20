@@ -111,6 +111,7 @@ type CryptoConfig struct {
 
 type TokenConfig struct {
 	AccessTokenTTL     time.Duration
+	IDTokenTTL         time.Duration
 	RefreshTokenTTL    time.Duration
 	CodeTTL            time.Duration
 	CodeLength         int
@@ -196,7 +197,7 @@ func Load() Config {
 		Redis:        RedisConfig{Addr: "127.0.0.1:6379", DB: 0, Password: ""},
 		CORS:         CORSConfig{EnableUserInfo: false},
 		Crypto:       CryptoConfig{IDTokenAlg: "RS256"},
-		Token:        TokenConfig{AccessTokenTTL: time.Hour, RefreshTokenTTL: 30 * 24 * time.Hour, CodeTTL: 2 * time.Minute, CodeLength: 32, RegistrationPATTTL: 24 * time.Hour, RequirePKCES256: true},
+		Token:        TokenConfig{AccessTokenTTL: time.Hour, IDTokenTTL: 15 * time.Minute, RefreshTokenTTL: 30 * 24 * time.Hour, CodeTTL: 2 * time.Minute, CodeLength: 32, RegistrationPATTTL: 24 * time.Hour, RequirePKCES256: true},
 		Session:      SessionConfig{CookieName: "op_session", CookieDomain: "", CookieSecure: false, CookieSameSite: "lax", TTL: 24 * time.Hour},
 		Registration: RegistrationConfig{RequireApproval: false, SectorTimeout: 3 * time.Second, AllowInsecureLocalHTTP: true},
 		Limits:       LimitConfig{LoginPerMinute: 10, TokenPerMinute: 60, Window: time.Minute},
@@ -303,6 +304,7 @@ type fileCrypto struct {
 }
 type fileToken struct {
 	AccessTokenTTL     string `yaml:"access_token_ttl" json:"access_token_ttl"`
+	IDTokenTTL         string `yaml:"id_token_ttl" json:"id_token_ttl"`
 	RefreshTokenTTL    string `yaml:"refresh_token_ttl" json:"refresh_token_ttl"`
 	CodeTTL            string `yaml:"code_ttl" json:"code_ttl"`
 	CodeLength         int    `yaml:"code_length" json:"code_length"`
@@ -438,6 +440,11 @@ func (fm *fileModel) apply(cfg *Config) {
 		if fm.Token.AccessTokenTTL != "" {
 			if d, err := time.ParseDuration(fm.Token.AccessTokenTTL); err == nil {
 				cfg.Token.AccessTokenTTL = d
+			}
+		}
+		if fm.Token.IDTokenTTL != "" {
+			if d, err := time.ParseDuration(fm.Token.IDTokenTTL); err == nil {
+				cfg.Token.IDTokenTTL = d
 			}
 		}
 		if fm.Token.RefreshTokenTTL != "" {

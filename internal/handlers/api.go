@@ -60,7 +60,7 @@ func (h *Handler) apiAdminApproveClient(c *gin.Context) {
 	}
 	// 审计日志
 	ip := c.ClientIP()
-	h.logSvc.Write(c, "INFO", "ADMIN_CLIENT_APPROVED", uidp, &clientID, "client approved", ip)
+	_ = h.logSvc.Write(c, "INFO", "ADMIN_CLIENT_APPROVED", uidp, &clientID, "client approved", ip)
 	c.Status(204)
 }
 
@@ -95,7 +95,7 @@ func (h *Handler) apiAdminRejectClient(c *gin.Context) {
 	}
 	// 审计日志
 	ip := c.ClientIP()
-	h.logSvc.Write(c, "INFO", "ADMIN_CLIENT_REJECTED", uidp, &clientID, "client rejected", ip)
+	_ = h.logSvc.Write(c, "INFO", "ADMIN_CLIENT_REJECTED", uidp, &clientID, "client rejected", ip)
 	c.Status(204)
 }
 

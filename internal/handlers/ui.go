@@ -80,7 +80,7 @@ func (h *Handler) loginSubmit(c *gin.Context) {
 		ip := c.ClientIP()
 		rid := c.GetString("request_id")
 		ua := c.Request.UserAgent()
-		h.logSvc.Write(c, "WARN", "USER_LOGIN_FAILED", nil, nil, "bad credentials", ip, services.LogWriteOpts{
+		_ = h.logSvc.Write(c, "WARN", "USER_LOGIN_FAILED", nil, nil, "bad credentials", ip, services.LogWriteOpts{
 			RequestID: rid,
 			SessionID: readSessionCookie(c, h.cfg.Session.CookieName),
 			Method:    c.Request.Method,
@@ -115,7 +115,7 @@ func (h *Handler) loginSubmit(c *gin.Context) {
 	ip := c.ClientIP()
 	rid := c.GetString("request_id")
 	ua := c.Request.UserAgent()
-	h.logSvc.Write(c, "INFO", "USER_LOGIN", h.userSvc.IDPtr(u.ID), nil, "login success", ip, services.LogWriteOpts{
+	_ = h.logSvc.Write(c, "INFO", "USER_LOGIN", h.userSvc.IDPtr(u.ID), nil, "login success", ip, services.LogWriteOpts{
 		RequestID: rid,
 		SessionID: sess.SID,
 		Method:    c.Request.Method,

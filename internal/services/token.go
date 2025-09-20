@@ -66,7 +66,11 @@ func (s *TokenService) BuildAccessTokenJWT(clientID string, userID uint64, subje
 // BuildIDToken 签发 ID Token（支持 nonce、acr、at_hash 等可选声明）。
 func (s *TokenService) BuildIDToken(clientID, subject, nonce, acr, atHash string, authTime time.Time, extra map[string]interface{}) (string, error) {
 	now := time.Now()
-	exp := now.Add(s.cfg.Token.AccessTokenTTL) // 与 AT 对齐（也可按需设置更短）
+	expTTL := s.cfg.Token.IDTokenTTL
+	if expTTL <= 0 {
+		expTTL = s.cfg.Token.AccessTokenTTL
+	}
+	exp := now.Add(expTTL)
 	rec, err := s.keys.ActiveKey(context.Background())
 	if err != nil {
 		return "", err

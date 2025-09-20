@@ -1,69 +1,60 @@
-# React + TypeScript + Vite
+# **OIDC 身份认证平台**
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## **1\. 项目愿景**
 
-Currently, two official plugins are available:
+本项目旨在构建一个功能全面、安全可靠、且对开发者友善的 **OpenID Connect (OIDC)** 身份认证平台。平台将作为各项服务的统一身份入口，为终端用户提供安全便捷的登录体验，为开发者提供标准化、易于集成的身份认证解决方案，并为管理员提供强大的全局管控能力。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## **2\. 核心特性**
 
-## Expanding the ESLint configuration
+* **三角色权限体系**：为终端用户、开发者和管理员设计了清晰的权限边界和专属功能面板。  
+* **开发者友好**：提供一站式应用注册、凭证管理、日志查询和在线调试工具，极大降低 OIDC 集成门槛。  
+* **企业级安全**：支持多重要素认证 (MFA)、活跃会话管理、全局安全策略配置和不可篡改的审计日志。  
+* **全面的用户控制**：用户可以精细化管理个人资料、应用授权、隐私数据，并随时监控账户安全。  
+* **平台级管理**：管理员拥有全局仪表盘，可集中管理所有用户、应用，并对平台进行品牌化定制。
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## **3\. 功能详解**
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+平台根据用户角色提供不同的功能视图。高级别角色将继承低级别角色的所有功能。
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+### **👤 终端用户 (End User)**
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+用户登录后进入个人仪表板，核心功能旨在保障账户安全与数据透明。
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+| 功能模块 | 详细说明 |
+| :---- | :---- |
+| **概览 (Overview)** | 🔹 显示用户唯一的身份标识 (User ID)。 🔹 以卡片形式展示所有已授权的应用，按授权时间倒序排列。 🔹 每个应用都是一个可点击的链接，方便快速跳转。 |
+| **个人资料 (Profile)** | 🔹 查看和修改显示名称。 🔹 管理电子邮箱地址，包括修改和发起验证。 🔹 提供安全的密码修改流程（需验证旧密码）。 |
+| **授权应用 (Authorized Apps)** | 🔹 清晰列出所有已授权的应用及其授权范围 (Scopes)。 🔹 为每个应用提供\*\*“撤销授权”\*\*功能，操作需二次确认，确保用户意图。 |
+| **日志 (Logs)** | 🔹 **仅可查看**与自身账户相关的活动日志，如登录历史、密码修改、授权变更等，保障隐私。 |
+| **安全中心 (Security Center)** | 🔹 多重要素认证 (MFA)：支持用户自助绑定和管理基于时间的一次性密码 (TOTP) 应用（如 Google Authenticator）。 🔹 活跃会话管理：实时查看所有已登录的设备、浏览器和 IP 地址，可强制单个或所有其他设备下线。 |
+| **隐私与数据 (Privacy)** | 🔹 下载个人数据：允许用户一键导出符合隐私规范的个人数据副本 (JSON 格式)。 🔹 账户删除：提供自助式账户删除流程，并通过邮件进行最终确认。 |
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### **🧑‍💻 开发者 (Developer)**
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+*（继承以上所有“终端用户”功能）*
+
+开发者的仪表板是应用集成的控制中心，专注于提供高效、便捷的开发与管理工具。
+
+| 功能模块 | 详细说明 |
+| :---- | :---- |
+| **OIDC 文档** | 🔹 内嵌显示平台 OIDC 协议的详细技术文档，方便随时查阅。 |
+| **客户端管理 (Clients)** | 🔹 应用列表：集中管理名下所有 OIDC 客户端（应用），包含名称、client\_id、类型、状态等信息。 🔹 注册新应用：提供清晰的注册表单，支持\*\*“公开 (Public)”和“机密 (Confidential)”两种客户端类型。 🔹 凭证安全：client\_secret 仅在创建成功时显示一次，并提供醒目提示。支持一键复制和下载凭证文件。 🔹 快速测试：提供“发起授权”\*\*按钮，使用当前配置快速体验完整的 OIDC 授权流程。 |
+| 应用日志 (App Logs) | 🔹 提供下拉菜单选择应用，查看该应用的所有相关日志。 🔹 支持按日志级别 (INFO, ERROR) 筛选和按关键词进行搜索。 |
+| 用户管理 (App Level) | 🔹 可选择名下的某个应用，查看所有已授权该应用的用户列表。 🔹 允许开发者主动\*\*“解除用户授权”\*\*，此操作将被详细记录。 |
+| **应用性能状态** | 🔹 提供一个可视化界面，调用后端健康检查接口，实时展示平台核心服务的运行状态。 |
+| **测试与调试工具** | 🔹 为每个客户端提供内建的 OIDC 调试器，可模拟授权流程，并对获取的 Token 进行解码和内容展示。 |
+| **应用分析** | 🔹 为每个应用提供一个简易的分析仪表盘，展示每日/每周的登录次数、新授权用户数、登录成功/失败率等。 |
+
+### **⚙️ 管理员 (Administrator)**
+
+*（继承以上所有“开发者”功能）*
+
+管理员拥有平台的最高权限，其功能着眼于全局的监控、管理和策略制定。
+
+| 功能模块 | 详细说明 |
+| :---- | :---- |
+| **全局仪表盘 (Dashboard)** | 🔹 以图表和关键指标 (KPIs) 形式展示整个平台的宏观状态：用户总数、活跃用户趋势、应用总数、全局登录统计等。 |
+| **全局用户管理** | 🔹 查看、搜索和管理平台上的所有用户账户。 🔹 可按角色、状态等条件筛选用户，并执行禁用账户、强制重置密码等管理操作。 |
+| **系统级管理** | 🔹 作用域管理 (Scope Mgt.)：定义平台支持的全局 scopes 及其对应的用户信息 (claims)。 🔹 平台角色 (RBAC)：为管理后台本身配置角色和权限，例如创建只能查看用户和日志的“客服支持”角色。 🔹 全局策略配置：集中设置平台的安全基线，包括密码复杂度策略、Token 默认生命周期、是否强制所有用户启用 MFA 等。 |
+| **安全与合规** | 🔹 全局审计日志：查看并检索所有管理员和开发者的关键操作记录，日志应设计为不可篡改，用于安全审计和责任追溯。 🔹 平台品牌化：允许自定义平台的外观，包括上传 Logo、调整主题颜色，以及编辑各类通知邮件（如欢迎邮件、密码重置邮件）的模板。 |
+

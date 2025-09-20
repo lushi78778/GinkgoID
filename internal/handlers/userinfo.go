@@ -62,7 +62,7 @@ func (h *Handler) userinfo(c *gin.Context) {
 		proof := c.GetHeader("DPoP")
 		res, perr := h.dpopVerifier.Verify(c.Request.Context(), proof, c.Request.Method, c.Request.URL.String())
 		if perr != nil {
-			h.logSvc.Write(c, "WARN", "DPoP_MISSING_OR_INVALID", nil, nil, "userinfo dpop missing/invalid", c.ClientIP(), services.LogWriteOpts{
+			_ = h.logSvc.Write(c, "WARN", "DPoP_MISSING_OR_INVALID", nil, nil, "userinfo dpop missing/invalid", c.ClientIP(), services.LogWriteOpts{
 				RequestID: c.GetString("request_id"),
 				Method:    c.Request.Method,
 				Path:      c.Request.URL.Path,
@@ -79,7 +79,7 @@ func (h *Handler) userinfo(c *gin.Context) {
 		if cnf, ok := claims["cnf"].(map[string]any); ok {
 			if jktExpected, ok2 := cnf["jkt"].(string); ok2 && jktExpected != "" {
 				if res.JKT != jktExpected {
-					h.logSvc.Write(c, "WARN", "DPoP_JKT_MISMATCH", nil, nil, "userinfo jkt mismatch", c.ClientIP(), services.LogWriteOpts{
+					_ = h.logSvc.Write(c, "WARN", "DPoP_JKT_MISMATCH", nil, nil, "userinfo jkt mismatch", c.ClientIP(), services.LogWriteOpts{
 						RequestID: c.GetString("request_id"),
 						Method:    c.Request.Method,
 						Path:      c.Request.URL.Path,
@@ -95,7 +95,7 @@ func (h *Handler) userinfo(c *gin.Context) {
 				}
 			}
 		}
-		h.logSvc.Write(c, "INFO", "DPoP_VERIFIED", nil, nil, "userinfo dpop verified", c.ClientIP(), services.LogWriteOpts{
+		_ = h.logSvc.Write(c, "INFO", "DPoP_VERIFIED", nil, nil, "userinfo dpop verified", c.ClientIP(), services.LogWriteOpts{
 			RequestID: c.GetString("request_id"),
 			Method:    c.Request.Method,
 			Path:      c.Request.URL.Path,

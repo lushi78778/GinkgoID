@@ -28,6 +28,22 @@ func (h *Handler) baseURL(c *gin.Context) string {
 	return proto + "://" + host
 }
 
+// fullRequestURL 结合 baseURL 与 RequestURI 生成规范的绝对 URL，用于 DPoP htu 比对。
+func (h *Handler) fullRequestURL(c *gin.Context) string {
+	base := h.baseURL(c)
+	uri := c.Request.URL.RequestURI()
+	if uri == "" {
+		uri = "/"
+	}
+	if strings.HasSuffix(base, "/") {
+		return base[:len(base)-1] + uri
+	}
+	if strings.HasPrefix(uri, "/") {
+		return base + uri
+	}
+	return base + "/" + uri
+}
+
 // setNoCache 为敏感响应添加禁止缓存的标准响应头。
 func setNoCache(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")

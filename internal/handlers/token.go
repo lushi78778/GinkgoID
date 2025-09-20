@@ -46,7 +46,7 @@ func (h *Handler) token(c *gin.Context) {
 	valid, cl, err := h.clientSvc.ValidateSecret(c, clientID, clientSecret)
 	if err != nil || !valid {
 		cid := clientID
-		h.logSvc.Write(c, "WARN", "TOKEN_CLIENT_AUTH_FAILED", nil, &cid, "invalid client auth", c.ClientIP(), services.LogWriteOpts{
+		_ = h.logSvc.Write(c, "WARN", "TOKEN_CLIENT_AUTH_FAILED", nil, &cid, "invalid client auth", c.ClientIP(), services.LogWriteOpts{
 			RequestID: c.GetString("request_id"),
 			Method:    c.Request.Method,
 			Path:      c.Request.URL.Path,
@@ -90,7 +90,7 @@ func (h *Handler) token(c *gin.Context) {
 			expected := base64.RawURLEncoding.EncodeToString(sum[:])
 			if expected != ac.CodeChallenge {
 				cid := clientID
-				h.logSvc.Write(c, "WARN", "TOKEN_PKCE_MISMATCH", nil, &cid, "pkce s256 mismatch", c.ClientIP(), services.LogWriteOpts{
+				_ = h.logSvc.Write(c, "WARN", "TOKEN_PKCE_MISMATCH", nil, &cid, "pkce s256 mismatch", c.ClientIP(), services.LogWriteOpts{
 					RequestID: c.GetString("request_id"),
 					Method:    c.Request.Method,
 					Path:      c.Request.URL.Path,
@@ -105,7 +105,7 @@ func (h *Handler) token(c *gin.Context) {
 		} else if method == "PLAIN" || method == "" {
 			if h.cfg.Token.RequirePKCES256 {
 				cid := clientID
-				h.logSvc.Write(c, "WARN", "TOKEN_PKCE_METHOD_UNSUPPORTED", nil, &cid, "plain not allowed", c.ClientIP(), services.LogWriteOpts{
+				_ = h.logSvc.Write(c, "WARN", "TOKEN_PKCE_METHOD_UNSUPPORTED", nil, &cid, "plain not allowed", c.ClientIP(), services.LogWriteOpts{
 					RequestID: c.GetString("request_id"),
 					Method:    c.Request.Method,
 					Path:      c.Request.URL.Path,
@@ -119,7 +119,7 @@ func (h *Handler) token(c *gin.Context) {
 			}
 			if codeVerifier != ac.CodeChallenge {
 				cid := clientID
-				h.logSvc.Write(c, "WARN", "TOKEN_PKCE_MISMATCH", nil, &cid, "pkce plain mismatch", c.ClientIP(), services.LogWriteOpts{
+				_ = h.logSvc.Write(c, "WARN", "TOKEN_PKCE_MISMATCH", nil, &cid, "pkce plain mismatch", c.ClientIP(), services.LogWriteOpts{
 					RequestID: c.GetString("request_id"),
 					Method:    c.Request.Method,
 					Path:      c.Request.URL.Path,
@@ -133,7 +133,7 @@ func (h *Handler) token(c *gin.Context) {
 			}
 		} else {
 			cid := clientID
-			h.logSvc.Write(c, "WARN", "TOKEN_PKCE_METHOD_UNSUPPORTED", nil, &cid, "unsupported method", c.ClientIP(), services.LogWriteOpts{
+			_ = h.logSvc.Write(c, "WARN", "TOKEN_PKCE_METHOD_UNSUPPORTED", nil, &cid, "unsupported method", c.ClientIP(), services.LogWriteOpts{
 				RequestID: c.GetString("request_id"),
 				Method:    c.Request.Method,
 				Path:      c.Request.URL.Path,
@@ -153,10 +153,11 @@ func (h *Handler) token(c *gin.Context) {
 	// DPoP: 若请求包含 DPoP-Proof，则尝试验证并生成 jkt
 	var cnfJKT string
 	if proof := c.GetHeader("DPoP"); proof != "" {
-		res, err := h.dpopVerifier.Verify(c.Request.Context(), proof, c.Request.Method, c.Request.URL.String())
+		htu := h.fullRequestURL(c)
+		res, err := h.dpopVerifier.Verify(c.Request.Context(), proof, c.Request.Method, htu)
 		if err != nil {
 			cid := clientID
-			h.logSvc.Write(c, "WARN", "DPoP_INVALID", nil, &cid, "invalid dpop proof", c.ClientIP(), services.LogWriteOpts{
+			_ = h.logSvc.Write(c, "WARN", "DPoP_INVALID", nil, &cid, "invalid dpop proof", c.ClientIP(), services.LogWriteOpts{
 				RequestID: c.GetString("request_id"),
 				Method:    c.Request.Method,
 				Path:      c.Request.URL.Path,
@@ -211,7 +212,7 @@ func (h *Handler) token(c *gin.Context) {
 	resp := gin.H{"access_token": at, "token_type": "Bearer", "expires_in": int(h.cfg.Token.AccessTokenTTL.Seconds()), "id_token": idt}
 	if cnfJKT != "" {
 		resp["token_type"] = "DPoP"
-		h.logSvc.Write(c, "INFO", "DPoP_BOUND", &ac.UserID, &cl.ClientID, "access token bound to dpop key", c.ClientIP(), services.LogWriteOpts{
+		_ = h.logSvc.Write(c, "INFO", "DPoP_BOUND", &ac.UserID, &cl.ClientID, "access token bound to dpop key", c.ClientIP(), services.LogWriteOpts{
 			RequestID: c.GetString("request_id"),
 			SessionID: ac.SID,
 			Method:    c.Request.Method,
@@ -223,13 +224,13 @@ func (h *Handler) token(c *gin.Context) {
 		})
 	}
 	if strings.Contains(" "+ac.Scope+" ", " offline_access ") {
-		if rt, err := h.refreshSvc.Issue(c, ac.UserID, cl.ClientID, ac.Scope, subject, ac.SID); err == nil {
+		if rt, err := h.refreshSvc.Issue(c, ac.UserID, cl.ClientID, ac.Scope, subject, ac.SID, cnfJKT); err == nil {
 			resp["refresh_token"] = rt
 		}
 	}
 	c.JSON(200, resp)
 	// 成功签发访问令牌
-	h.logSvc.Write(c, "INFO", "TOKEN_ISSUED", &ac.UserID, &cl.ClientID, "access/id token issued", c.ClientIP(), services.LogWriteOpts{
+	_ = h.logSvc.Write(c, "INFO", "TOKEN_ISSUED", &ac.UserID, &cl.ClientID, "access/id token issued", c.ClientIP(), services.LogWriteOpts{
 		RequestID: c.GetString("request_id"),
 		SessionID: ac.SID,
 		Method:    c.Request.Method,
@@ -252,22 +253,87 @@ func (h *Handler) handleRefreshToken(c *gin.Context, clientID string, cl *storag
 		c.JSON(400, gin.H{"error": "invalid_grant"})
 		return
 	}
+	cnfJKT := rec.JKT
+	if cnfJKT != "" {
+		proof := c.GetHeader("DPoP")
+		if proof == "" {
+			cid := clientID
+			_ = h.logSvc.Write(c, "WARN", "DPoP_MISSING", &rec.UserID, &cid, "refresh token dpop missing", c.ClientIP(), services.LogWriteOpts{
+				RequestID: c.GetString("request_id"),
+				SessionID: rec.SID,
+				Method:    c.Request.Method,
+				Path:      c.Request.URL.Path,
+				Status:    400,
+				UserAgent: c.Request.UserAgent(),
+				Outcome:   "failure",
+				ErrorCode: "invalid_dpop",
+			})
+			c.Header("WWW-Authenticate", "DPoP error=\"invalid_dpop\"")
+			c.JSON(400, gin.H{"error": "invalid_dpop"})
+			return
+		}
+		htu := h.fullRequestURL(c)
+		res, verr := h.dpopVerifier.Verify(c.Request.Context(), proof, c.Request.Method, htu)
+		if verr != nil || res == nil || res.JKT != cnfJKT {
+			cid := clientID
+			errCode := "invalid_dpop"
+			if verr == nil && res != nil {
+				errCode = "dpop_jkt_mismatch"
+			}
+			actual := ""
+			if res != nil {
+				actual = res.JKT
+			}
+			_ = h.logSvc.Write(c, "WARN", "DPoP_INVALID", &rec.UserID, &cid, "refresh token dpop invalid", c.ClientIP(), services.LogWriteOpts{
+				RequestID: c.GetString("request_id"),
+				SessionID: rec.SID,
+				Method:    c.Request.Method,
+				Path:      c.Request.URL.Path,
+				Status:    400,
+				UserAgent: c.Request.UserAgent(),
+				Outcome:   "failure",
+				ErrorCode: errCode,
+				Extra:     map[string]any{"expected_jkt": cnfJKT, "actual_jkt": actual},
+			})
+			c.Header("WWW-Authenticate", "DPoP error=\"invalid_dpop\"")
+			c.JSON(400, gin.H{"error": "invalid_dpop"})
+			return
+		}
+	}
 	subject := h.subjectFor(cl, rec.UserID)
-	at, exp, jti, err := h.tokenSvc.BuildAccessTokenJWT(cl.ClientID, rec.UserID, subject, rec.Scope, rec.SID, "")
+	at, exp, jti, err := h.tokenSvc.BuildAccessTokenJWT(cl.ClientID, rec.UserID, subject, rec.Scope, rec.SID, cnfJKT)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "server_error"})
 		return
 	}
 	_ = h.tokenRepo.SaveAccessToken(c, cl.ClientID, rec.UserID, rec.Scope, jti, exp)
 	atHash := utils.ATHash(at)
-	idt, err := h.tokenSvc.BuildIDToken(cl.ClientID, subject, "", "urn:op:auth:pwd", atHash, time.Now(), map[string]interface{}{"sid": rec.SID, "azp": cl.ClientID})
+	extra := map[string]interface{}{"sid": rec.SID, "azp": cl.ClientID}
+	if cnfJKT != "" {
+		extra["cnf"] = map[string]any{"jkt": cnfJKT}
+	}
+	idt, err := h.tokenSvc.BuildIDToken(cl.ClientID, subject, "", "urn:op:auth:pwd", atHash, time.Now(), extra)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "server_error"})
 		return
 	}
 	metrics.TokensIssued.Inc()
-	c.JSON(200, gin.H{"access_token": at, "token_type": "Bearer", "expires_in": int(h.cfg.Token.AccessTokenTTL.Seconds()), "id_token": idt, "refresh_token": newRT})
-	h.logSvc.Write(c, "INFO", "TOKEN_REFRESHED", &rec.UserID, &cl.ClientID, "access/id token refreshed", c.ClientIP(), services.LogWriteOpts{
+	resp := gin.H{"access_token": at, "token_type": "Bearer", "expires_in": int(h.cfg.Token.AccessTokenTTL.Seconds()), "id_token": idt, "refresh_token": newRT}
+	if cnfJKT != "" {
+		resp["token_type"] = "DPoP"
+		_ = h.logSvc.Write(c, "INFO", "DPoP_BOUND", &rec.UserID, &cl.ClientID, "access token bound to dpop key", c.ClientIP(), services.LogWriteOpts{
+			RequestID: c.GetString("request_id"),
+			SessionID: rec.SID,
+			Method:    c.Request.Method,
+			Path:      c.Request.URL.Path,
+			Status:    200,
+			UserAgent: c.Request.UserAgent(),
+			Outcome:   "success",
+			Extra:     map[string]any{"jkt": cnfJKT},
+		})
+	}
+	c.JSON(200, resp)
+	_ = h.logSvc.Write(c, "INFO", "TOKEN_REFRESHED", &rec.UserID, &cl.ClientID, "access/id token refreshed", c.ClientIP(), services.LogWriteOpts{
 		RequestID: c.GetString("request_id"),
 		SessionID: rec.SID,
 		Method:    c.Request.Method,

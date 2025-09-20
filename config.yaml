@@ -43,6 +43,8 @@ crypto:
 token:
   ## 访问令牌有效期
   access_token_ttl: 1h
+  ## ID Token 有效期（为空时默认与 access_token_ttl 相同）
+  id_token_ttl: 15m
   ## 刷新令牌有效期（offline_access 时返回）
   refresh_token_ttl: 720h
   ## 授权码有效期（短有效）

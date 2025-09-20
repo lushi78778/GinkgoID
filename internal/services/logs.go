@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 
 	"ginkgoid/internal/storage"
@@ -28,7 +29,7 @@ type LogWriteOpts struct {
 	Extra     any // 将被序列化为 JSON（注意调用侧脱敏）
 }
 
-func (s *LogService) Write(ctx context.Context, level, event string, userID *uint64, clientID *string, desc string, ip string, opts ...LogWriteOpts) {
+func (s *LogService) Write(ctx context.Context, level, event string, userID *uint64, clientID *string, desc string, ip string, opts ...LogWriteOpts) error {
 	var o LogWriteOpts
 	if len(opts) > 0 {
 		o = opts[0]
@@ -39,7 +40,7 @@ func (s *LogService) Write(ctx context.Context, level, event string, userID *uin
 			extra = string(b)
 		}
 	}
-	_ = s.db.WithContext(ctx).Create(&storage.LogRecord{
+	rec := &storage.LogRecord{
 		Timestamp:   time.Now(),
 		Level:       level,
 		Event:       event,
@@ -56,7 +57,19 @@ func (s *LogService) Write(ctx context.Context, level, event string, userID *uin
 		Outcome:     o.Outcome,
 		ErrorCode:   o.ErrorCode,
 		ExtraJSON:   extra,
-	}).Error
+	}
+	if err := s.db.WithContext(ctx).Create(rec).Error; err != nil {
+		log.WithError(err).WithFields(log.Fields{
+			"event":      event,
+			"level":      level,
+			"user_id":    userID,
+			"client_id":  clientID,
+			"request_id": o.RequestID,
+			"path":       o.Path,
+		}).Error("audit log write failed")
+		return err
+	}
+	return nil
 }
 
 // Query 支持按时间范围/级别/事件/用户/客户端筛选日志，默认倒序，limit<=1000。

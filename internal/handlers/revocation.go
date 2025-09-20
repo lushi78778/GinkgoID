@@ -6,7 +6,6 @@ import (
 	"ginkgoid/internal/services"
 
 	"github.com/gin-gonic/gin"
-	jwt "github.com/golang-jwt/jwt/v5"
 )
 
 // @Summary      吊销端点（Revocation）
@@ -45,7 +44,7 @@ func (h *Handler) revoke(c *gin.Context) {
 		_ = h.refreshSvc.Delete(c, token)
 		ip := c.ClientIP()
 		cid := cl.ClientID
-		h.logSvc.Write(c, "INFO", "REFRESH_REVOKED", nil, &cid, "refresh token revoked", ip, services.LogWriteOpts{
+		_ = h.logSvc.Write(c, "INFO", "REFRESH_REVOKED", nil, &cid, "refresh token revoked", ip, services.LogWriteOpts{
 			RequestID: c.GetString("request_id"),
 			Method:    c.Request.Method,
 			Path:      c.Request.URL.Path,
@@ -56,8 +55,7 @@ func (h *Handler) revoke(c *gin.Context) {
 		c.Status(200)
 		return
 	}
-	claims := jwt.MapClaims{}
-	if _, _, err := new(jwt.Parser).ParseUnverified(token, claims); err == nil {
+	if claims, err := h.tokenSvc.VerifyJWT(token); err == nil {
 		jti, _ := claims["jti"].(string)
 		expF, _ := claims["exp"].(float64)
 		now := time.Now()
@@ -67,11 +65,13 @@ func (h *Handler) revoke(c *gin.Context) {
 				ttl = exp.Sub(now)
 			}
 		}
-		_ = h.revokeSvc.RevokeAccessToken(c, jti, ttl)
+		if jti != "" {
+			_ = h.revokeSvc.RevokeAccessToken(c, jti, ttl)
+		}
 	}
 	ip := c.ClientIP()
 	cid := cl.ClientID
-	h.logSvc.Write(c, "INFO", "ACCESS_REVOKED", nil, &cid, "access token revoked", ip, services.LogWriteOpts{
+	_ = h.logSvc.Write(c, "INFO", "ACCESS_REVOKED", nil, &cid, "access token revoked", ip, services.LogWriteOpts{
 		RequestID: c.GetString("request_id"),
 		Method:    c.Request.Method,
 		Path:      c.Request.URL.Path,

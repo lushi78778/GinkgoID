@@ -49,7 +49,7 @@ func (h *Handler) registerClient(c *gin.Context) {
 	}
 	c.Header("Location", resp.RegistrationClientURI)
 	ip := c.ClientIP()
-	h.logSvc.Write(c, "INFO", "CLIENT_REGISTERED", nil, &resp.ClientID, "client registered", ip, services.LogWriteOpts{
+	_ = h.logSvc.Write(c, "INFO", "CLIENT_REGISTERED", nil, &resp.ClientID, "client registered", ip, services.LogWriteOpts{
 		RequestID: c.GetString("request_id"),
 		Method:    c.Request.Method,
 		Path:      c.Request.URL.Path,
@@ -96,7 +96,7 @@ func (h *Handler) rotateRegistrationToken(c *gin.Context) {
 			return
 		}
 		c.JSON(200, gin.H{"registration_access_token": newTok})
-		h.logSvc.Write(c, "INFO", "REGISTRATION_TOKEN_ROTATED", nil, &cl.ClientID, "registration token rotated", c.ClientIP(), services.LogWriteOpts{
+		_ = h.logSvc.Write(c, "INFO", "REGISTRATION_TOKEN_ROTATED", nil, &cl.ClientID, "registration token rotated", c.ClientIP(), services.LogWriteOpts{
 			RequestID: c.GetString("request_id"),
 			Method:    c.Request.Method,
 			Path:      c.Request.URL.Path,

@@ -19,6 +19,7 @@ type RefreshRecord struct {
 	Scope    string    `json:"scope"`
 	Subject  string    `json:"sub"`
 	SID      string    `json:"sid"`
+	JKT      string    `json:"jkt,omitempty"`
 	IssuedAt time.Time `json:"iat"`
 }
 
@@ -34,9 +35,9 @@ func NewRefreshService(rdb *redis.Client, cfg config.Config) *RefreshService {
 func (s *RefreshService) key(tok string) string { return fmt.Sprintf("rt:%s", tok) }
 
 // Issue 生成新的刷新令牌并按 TTL 存储。
-func (s *RefreshService) Issue(ctx context.Context, userID uint64, clientID, scope, subject, sid string) (string, error) {
+func (s *RefreshService) Issue(ctx context.Context, userID uint64, clientID, scope, subject, sid, jkt string) (string, error) {
 	token := uuid.NewString()
-	rec := &RefreshRecord{Token: token, UserID: userID, ClientID: clientID, Scope: scope, Subject: subject, SID: sid, IssuedAt: time.Now()}
+	rec := &RefreshRecord{Token: token, UserID: userID, ClientID: clientID, Scope: scope, Subject: subject, SID: sid, JKT: jkt, IssuedAt: time.Now()}
 	b, _ := json.Marshal(rec)
 	if err := s.rdb.Set(ctx, s.key(token), b, s.cfg.Token.RefreshTokenTTL).Err(); err != nil {
 		return "", err
@@ -56,7 +57,7 @@ func (s *RefreshService) Use(ctx context.Context, token string) (*RefreshRecord,
 	}
 	// 旋转：删除旧令牌并签发新令牌
 	_ = s.rdb.Del(ctx, s.key(token)).Err()
-	newTok, err := s.Issue(ctx, rec.UserID, rec.ClientID, rec.Scope, rec.Subject, rec.SID)
+	newTok, err := s.Issue(ctx, rec.UserID, rec.ClientID, rec.Scope, rec.Subject, rec.SID, rec.JKT)
 	if err != nil {
 		return nil, "", err
 	}
