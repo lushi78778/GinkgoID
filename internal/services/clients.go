@@ -131,6 +131,7 @@ func (s *ClientService) Register(ctx context.Context, baseURL string, req *Regis
 		status = 0
 		approved = false
 	}
+	enabled := approved
 	c := &storage.Client{
 		ClientID:                         clientID,
 		SecretHash:                       secretHash,
@@ -148,6 +149,7 @@ func (s *ClientService) Register(ctx context.Context, baseURL string, req *Regis
 		RegistrationAccessTokenExpiresAt: expAtPtr,
 		Status:                           status,
 		Approved:                         approved,
+		Enabled:                          enabled,
 		CreatedAt:                        now,
 		UpdatedAt:                        now,
 	}
@@ -179,7 +181,7 @@ func (s *ClientService) Register(ctx context.Context, baseURL string, req *Regis
 // FindByID 根据 client_id 查找已批准的客户端。
 func (s *ClientService) FindByID(ctx context.Context, clientID string) (*storage.Client, error) {
 	var c storage.Client
-	if err := s.db.WithContext(ctx).Where("client_id = ? AND approved = ?", clientID, true).First(&c).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("client_id = ? AND approved = ? AND enabled = ?", clientID, true, true).First(&c).Error; err != nil {
 		return nil, err
 	}
 	return &c, nil
@@ -199,6 +201,9 @@ func (s *ClientService) ValidateSecret(ctx context.Context, clientID, secret str
 	c, err := s.FindByID(ctx, clientID)
 	if err != nil {
 		return false, nil, err
+	}
+	if !c.Enabled {
+		return false, c, fmt.Errorf("client_disabled")
 	}
 	if c.TokenEndpointAuthMethod == "none" {
 		return true, c, nil
@@ -251,6 +256,22 @@ func (s *ClientService) ListByOwner(ctx context.Context, ownerID uint64) ([]stor
 	return list, nil
 }
 
+func (s *ClientService) Count(ctx context.Context) (int64, error) {
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&storage.Client{}).Count(&total).Error; err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+func (s *ClientService) CountPending(ctx context.Context) (int64, error) {
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&storage.Client{}).Where("status = ?", 0).Count(&total).Error; err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
 // FindAnyByID 不要求 Approved（对内部管理或拥有者操作开放）。
 func (s *ClientService) FindAnyByID(ctx context.Context, clientID string) (*storage.Client, error) {
 	return s.findAnyByID(ctx, clientID)
@@ -281,6 +302,7 @@ func (s *ClientService) ApproveClient(ctx context.Context, clientID string, admi
 	}
 	c.Status = 1
 	c.Approved = true
+	c.Enabled = true
 	c.ApprovedBy = adminUserID
 	t := time.Now()
 	c.ApprovedAt = &t
@@ -296,6 +318,7 @@ func (s *ClientService) RejectClient(ctx context.Context, clientID string, admin
 	}
 	c.Status = 2
 	c.Approved = false
+	c.Enabled = false
 	c.ApprovedBy = adminUserID
 	t := time.Now()
 	c.ApprovedAt = &t

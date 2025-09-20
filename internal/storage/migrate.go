@@ -17,8 +17,25 @@ type User struct {
 	Name          string `gorm:"size:190"`
 	IsAdmin       bool   `gorm:"index"`
 	IsDev         bool   `gorm:"index"`
+	MarketingOptIn bool      `gorm:"index"`
+	PendingEmail    string    `gorm:"size:190"`
+	MFAEnabled      bool      `gorm:"index"`
+	MFASecret       string    `gorm:"size:128"`
+	MFARecoveryCodes string   `gorm:"type:text"`
+	MFAPendingSecret string   `gorm:"size:128"`
+	MFAPendingRecoveryCodes string `gorm:"type:text"`
+	MFAEnrolledAt    *time.Time
+	MFALastUsedAt    *time.Time
+	DeletionRequestedAt *time.Time
+	DeletionReason       string `gorm:"size:255"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+type Setting struct {
+	Key       string    `gorm:"primaryKey;size:190"`
+	Value     string    `gorm:"type:longtext"`
+	UpdatedAt time.Time
 }
 
 type Client struct {
@@ -45,6 +62,7 @@ type Client struct {
 	ApprovedAt   *time.Time // 审批时间（待审为 NULL）
 	RejectReason string     `gorm:"size:255"` // 拒绝原因
 	Approved     bool       `gorm:"index"`    // 兼容旧逻辑，true=已通过
+	Enabled      bool       `gorm:"index"`    // 是否允许使用（审批通过后可单独禁用）
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -107,7 +125,7 @@ type Consent struct {
 
 // autoMigrate 执行数据库自动迁移。
 func autoMigrate(db *gorm.DB) error {
-	if err := db.AutoMigrate(&User{}, &Client{}, &JWKKey{}, &TokenRecord{}, &LogRecord{}, &Consent{}); err != nil {
+	if err := db.AutoMigrate(&User{}, &Client{}, &JWKKey{}, &TokenRecord{}, &LogRecord{}, &Consent{}, &Setting{}); err != nil {
 		return err
 	}
 	// 保障字段可空（部分旧库可能保留 NOT NULL 约束）

@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 
-export type Me = { id: number; username: string; name?: string; email?: string; is_admin?: boolean }
+export type Me = { id: number; username: string; name?: string; email?: string; is_admin?: boolean; is_dev?: boolean }
 
 type AuthState = {
   me: Me | null

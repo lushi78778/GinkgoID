@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { apiJSON } from '@/lib/api'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { generatePKCE } from '@/lib/pkce'
 import { useAuth } from '@/lib/auth'
 import { Tooltip } from '@/components/ui/tooltip'
+import { toast } from 'sonner'
 
 // Tooltip component shows explanation on hover
 
@@ -26,6 +27,13 @@ export default function Clients() {
   const [redirect, setRedirect] = useState('')
   const [subjectType, setSubjectType] = useState<'public' | 'pairwise'>('public')
   const [publicClient, setPublicClient] = useState(true)
+  const [clientName, setClientName] = useState('')
+  const [scope, setScope] = useState('openid profile email offline_access')
+  const [grantTypes, setGrantTypes] = useState('authorization_code,refresh_token')
+  const [responseTypes, setResponseTypes] = useState('code')
+  const [postLogoutRedirects, setPostLogoutRedirects] = useState('')
+  const [frontchannelLogout, setFrontchannelLogout] = useState('')
+  const [backchannelLogout, setBackchannelLogout] = useState('')
   const [resp, setResp] = useState<RegisterResp | null>(null)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<any | null>(null)
@@ -35,6 +43,7 @@ export default function Clients() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setRedirect(`${window.location.origin}/cb`)
+      setClientName('我的应用')
       const saved = window.localStorage.getItem('ginkgo-client')
       if (saved) {
         try {

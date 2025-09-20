@@ -64,3 +64,56 @@ func (s *SessionService) Delete(ctx context.Context, sid string) error {
 	key := fmt.Sprintf("session:%s", sid)
 	return s.rdb.Del(ctx, key).Err()
 }
+
+// ListByUser 扫描 Redis，返回指定用户的所有会话。
+func (s *SessionService) ListByUser(ctx context.Context, userID uint64) ([]Session, error) {
+	iter := s.rdb.Scan(ctx, 0, "session:*", 0).Iterator()
+	result := make([]Session, 0)
+	for iter.Next(ctx) {
+		key := iter.Val()
+		cmd := s.rdb.Get(ctx, key)
+		if cmd.Err() != nil {
+			continue
+		}
+		var sess Session
+		if err := json.Unmarshal([]byte(cmd.Val()), &sess); err != nil {
+			continue
+		}
+		if sess.UserID == userID {
+			result = append(result, sess)
+		}
+	}
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// DeleteOthers 删除用户除 keepSID 之外的所有会话。
+func (s *SessionService) DeleteOthers(ctx context.Context, userID uint64, keepSID string) error {
+	sessions, err := s.ListByUser(ctx, userID)
+	if err != nil {
+		return err
+	}
+	for _, sess := range sessions {
+		if sess.SID == keepSID {
+			continue
+		}
+		_ = s.Delete(ctx, sess.SID)
+	}
+	return nil
+}
+
+// DeleteForUser 删除指定用户的单个会话。
+func (s *SessionService) DeleteForUser(ctx context.Context, userID uint64, sid string) error {
+	sessions, err := s.ListByUser(ctx, userID)
+	if err != nil {
+		return err
+	}
+	for _, sess := range sessions {
+		if sess.SID == sid {
+			return s.Delete(ctx, sid)
+		}
+	}
+	return fmt.Errorf("session_not_found")
+}

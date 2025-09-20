@@ -99,6 +99,7 @@ func main() {
 	logSvc := services.NewLogService(db)
 	tokenRepo := services.NewTokenRepo(db)
 	dpopVerifier := services.NewDPoPVerifier(rdb, cfg.DPoP.ReplayWindow, cfg.DPoP.ClockSkew)
+	settingSvc := services.NewSettingService(db)
 
 	// HTTP 路由与中间件
 	if cfg.Env == "prod" {
@@ -113,7 +114,7 @@ func main() {
 
 	// 装载 HTTP 处理器
 	h := handlers.New(
-		cfg, keySvc, clientSvc, userSvc, sessionSvc, tokenSvc, codeSvc, consentSvc, refreshSvc, revokeSvc, logSvc, tokenRepo, rdb, dpopVerifier,
+		cfg, keySvc, clientSvc, userSvc, sessionSvc, tokenSvc, codeSvc, consentSvc, refreshSvc, revokeSvc, logSvc, tokenRepo, rdb, dpopVerifier, settingSvc,
 	)
 	h.RegisterRoutes(router)
 	// 用户管理 SPA 静态资源与入口页（Next.js 导出的 web/app）

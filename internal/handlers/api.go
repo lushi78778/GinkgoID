@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -109,11 +110,32 @@ func (h *Handler) registerAPIRoutes(r *gin.Engine) {
 	api.GET("/me", h.apiMe)
 	api.PUT("/me", h.apiUpdateMe)
 	api.POST("/me/password", h.apiChangePassword)
+	api.POST("/me/email/verify", h.apiMeVerifyEmail)
+	api.PUT("/me/preferences", h.apiMeUpdatePreferences)
+	api.GET("/self/logs", h.apiSelfLogs)
+
+	security := api.Group("/security")
+	security.GET("/mfa", h.apiSecurityGetMFA)
+	security.POST("/mfa/setup", h.apiSecuritySetupMFA)
+	security.POST("/mfa/activate", h.apiSecurityActivateMFA)
+	security.DELETE("/mfa", h.apiSecurityDisableMFA)
+	security.GET("/sessions", h.apiSecurityListSessions)
+	security.DELETE("/sessions", h.apiSecurityDeleteSessions)
+	security.DELETE("/sessions/:id", h.apiSecurityDeleteSession)
+
+	privacy := api.Group("/privacy")
+	privacy.POST("/export", h.apiPrivacyExport)
+	privacy.POST("/delete", h.apiPrivacyDelete)
+	api.GET("/privacy/export/:token", h.apiPrivacyDownload)
 	// 我的应用（客户端）
 	api.GET("/my/clients", h.apiMyClients)
 	api.PUT("/my/clients/:client_id/disable", h.apiMyDisableClient)
 	api.PUT("/my/clients/:client_id/enable", h.apiMyEnableClient)
 	api.DELETE("/my/clients/:client_id", h.apiMyDeleteClient)
+	api.GET("/my/clients/:client_id/logs", h.devOnly(h.apiMyClientLogs))
+	api.GET("/my/clients/:client_id/users", h.devOnly(h.apiMyClientUsers))
+	api.DELETE("/my/clients/:client_id/users/:user_id", h.devOnly(h.apiMyClientUserDelete))
+	api.GET("/my/clients/:client_id/analytics", h.devOnly(h.apiMyClientAnalytics))
 	// 授权应用（同意）
 	api.GET("/consents", h.apiListConsents)
 	api.DELETE("/consents/:client_id", h.apiRevokeConsent)
@@ -122,6 +144,13 @@ func (h *Handler) registerAPIRoutes(r *gin.Engine) {
 	api.POST("/users", h.adminOnly(h.apiAdminCreateUser))
 	api.PUT("/users/:id", h.adminOnly(h.apiAdminUpdateUser))
 	api.GET("/logs", h.adminOnly(h.apiAdminListLogs))
+	api.GET("/admin/metrics", h.adminOnly(h.apiAdminMetrics))
+	api.GET("/admin/settings", h.adminOnly(h.apiAdminSettings))
+	api.PUT("/admin/scopes", h.adminOnly(h.apiAdminUpdateScopes))
+	api.PUT("/admin/roles", h.adminOnly(h.apiAdminUpdateRoles))
+	api.PUT("/admin/policies", h.adminOnly(h.apiAdminUpdatePolicies))
+	api.GET("/admin/branding", h.adminOnly(h.apiAdminBranding))
+	api.PUT("/admin/branding", h.adminOnly(h.apiAdminUpdateBranding))
 }
 
 func (h *Handler) currentUser(c *gin.Context) (*uint64, error) {
@@ -154,7 +183,33 @@ func (h *Handler) apiMe(c *gin.Context) {
 		c.JSON(401, gin.H{"error": "unauthorized"})
 		return
 	}
-	c.JSON(200, gin.H{"id": u.ID, "username": u.Username, "email": u.Email, "name": u.Name, "is_admin": h.isAdmin(u), "is_dev": u.IsDev})
+	msg := ""
+	if !u.EmailVerified {
+		msg = "邮箱尚未验证，部分敏感操作将受到限制"
+	}
+	if u.PendingEmail != "" {
+		msg = "新邮箱待验证，请查收验证邮件"
+	}
+	resp := gin.H{
+		"id":                   u.ID,
+		"username":             u.Username,
+		"email":                u.Email,
+		"name":                 u.Name,
+		"is_admin":             h.isAdmin(u),
+		"is_dev":               u.IsDev,
+		"marketing_opt_in":     u.MarketingOptIn,
+		"email_verified":       u.EmailVerified,
+		"pending_email":        u.PendingEmail,
+		"mfa_enabled":          u.MFAEnabled,
+		"email_status_message": msg,
+	}
+	if u.MFAEnrolledAt != nil {
+		resp["mfa_enrolled_at"] = u.MFAEnrolledAt.Unix()
+	}
+	if u.MFALastUsedAt != nil {
+		resp["mfa_last_used_at"] = u.MFALastUsedAt.Unix()
+	}
+	c.JSON(200, resp)
 }
 
 // @Summary      更新我的资料
@@ -178,12 +233,27 @@ func (h *Handler) apiUpdateMe(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "bad_json"})
 		return
 	}
-	u, err := h.userSvc.UpdateProfile(c, *uidp, req.Name, req.Email)
+	u, err := h.userSvc.FindByID(c, *uidp)
 	if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		c.JSON(404, gin.H{"error": "not_found"})
 		return
 	}
-	c.JSON(200, gin.H{"id": u.ID, "username": u.Username, "email": u.Email, "name": u.Name})
+	originalEmail := strings.TrimSpace(u.Email)
+	name := strings.TrimSpace(req.Name)
+	email := strings.TrimSpace(req.Email)
+	if name != "" {
+		u.Name = name
+	}
+	if email != "" && email != originalEmail {
+		u.Email = email
+		u.EmailVerified = false
+		u.PendingEmail = ""
+	}
+	if err := h.userSvc.Save(c, u); err != nil {
+		c.JSON(500, gin.H{"error": "db"})
+		return
+	}
+	c.JSON(200, gin.H{"id": u.ID, "username": u.Username, "email": u.Email, "name": u.Name, "email_verified": u.EmailVerified})
 }
 
 // @Summary      修改我的口令
@@ -236,7 +306,7 @@ func (h *Handler) apiMyEnableClient(c *gin.Context) {
 		c.JSON(403, gin.H{"error": "forbidden"})
 		return
 	}
-	cl.Approved = true
+	cl.Enabled = true
 	if err := h.clientSvc.Save(c, cl); err != nil {
 		c.JSON(500, gin.H{"error": "db"})
 		return
@@ -257,6 +327,26 @@ func (h *Handler) adminOnly(fn gin.HandlerFunc) gin.HandlerFunc {
 			return
 		}
 		if !h.isAdmin(u) {
+			c.JSON(403, gin.H{"error": "forbidden"})
+			return
+		}
+		fn(c)
+	}
+}
+
+func (h *Handler) devOnly(fn gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		uidp, err := h.currentUser(c)
+		if err != nil {
+			c.JSON(401, gin.H{"error": "unauthorized"})
+			return
+		}
+		u, err := h.userSvc.FindByID(c, *uidp)
+		if err != nil {
+			c.JSON(401, gin.H{"error": "unauthorized"})
+			return
+		}
+		if !h.isDev(u) {
 			c.JSON(403, gin.H{"error": "forbidden"})
 			return
 		}
@@ -534,15 +624,16 @@ func (h *Handler) apiMyClients(c *gin.Context) {
 			"subject_type":               cl.SubjectType,
 			"token_endpoint_auth_method": cl.TokenEndpointAuthMethod,
 			"approved":                   cl.Approved,
+			"enabled":                    cl.Enabled,
 			"created_at":                 cl.CreatedAt.Unix(),
 		})
 	}
 	c.JSON(200, out)
 }
 
-// 禁用我拥有的客户端（Approved=false）
+// 禁用我拥有的客户端
 // @Summary      禁用我的客户端
-// @Description  将指定客户端置为未批准（approved=false）
+// @Description  将指定客户端置为禁用状态（enabled=false）
 // @Tags         client-api
 // @Produce      json
 // @Param        client_id path string true "客户端 ID"
@@ -571,7 +662,7 @@ func (h *Handler) apiMyDisableClient(c *gin.Context) {
 		c.JSON(403, gin.H{"error": "forbidden"})
 		return
 	}
-	cl.Approved = false
+	cl.Enabled = false
 	if err := h.clientSvc.Save(c, cl); err != nil {
 		c.JSON(500, gin.H{"error": "db"})
 		return

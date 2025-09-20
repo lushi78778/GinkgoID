@@ -69,6 +69,22 @@ func (s *UserService) List(ctx context.Context, limit int) ([]storage.User, erro
 	return users, nil
 }
 
+func (s *UserService) Count(ctx context.Context) (int64, error) {
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&storage.User{}).Count(&total).Error; err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+func (s *UserService) CountMFAEnabled(ctx context.Context) (int64, error) {
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&storage.User{}).Where("mfa_enabled = ?", true).Count(&total).Error; err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
 func (s *UserService) IDPtr(id uint64) *uint64 { return &id }
 
 // Save 持久化用户字段变更。

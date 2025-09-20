@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -68,4 +69,26 @@ func (s *ConsentService) ListByUser(ctx context.Context, userID uint64) ([]stora
 // Revoke 删除用户对某客户端的授权。
 func (s *ConsentService) Revoke(ctx context.Context, userID uint64, clientID string) error {
 	return s.db.WithContext(ctx).Where("user_id = ? AND client_id = ?", userID, clientID).Delete(&storage.Consent{}).Error
+}
+
+// ClientAuthorizedUser 表示授权了某客户端的终端用户信息。
+type ClientAuthorizedUser struct {
+	UserID    uint64    `json:"user_id"`
+	Username  string    `json:"username"`
+	Email     string    `json:"email"`
+	Name      string    `json:"name"`
+	Scope     string    `json:"scope"`
+	GrantedAt time.Time `json:"granted_at"`
+}
+
+// ListUsersForClient 列出授权了指定客户端的所有用户。
+func (s *ConsentService) ListUsersForClient(ctx context.Context, clientID string) ([]ClientAuthorizedUser, error) {
+	var list []ClientAuthorizedUser
+	err := s.db.WithContext(ctx).
+		Table("consents").
+		Select("consents.user_id as user_id, consents.scope as scope, consents.created_at as granted_at, users.username as username, users.email as email, users.name as name").
+		Joins("JOIN users ON consents.user_id = users.id").
+		Where("consents.client_id = ?", clientID).
+		Scan(&list).Error
+	return list, err
 }

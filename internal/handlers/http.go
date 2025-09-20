@@ -27,11 +27,12 @@ type Handler struct {
 	tokenRepo    *services.TokenRepo
 	rdb          *redis.Client
 	dpopVerifier *services.DPoPVerifier
+	settingSvc   *services.SettingService
 }
 
 // New 构造 Handler，将各领域服务注入，用于后续路由注册与处理。
-func New(cfg config.Config, ks *services.KeyService, cs *services.ClientService, us *services.UserService, ss *services.SessionService, ts *services.TokenService, codes *services.CodeService, cons *services.ConsentService, rs *services.RefreshService, rv *services.RevocationService, ls *services.LogService, tr *services.TokenRepo, rdb *redis.Client, dv *services.DPoPVerifier) *Handler {
-	return &Handler{cfg: cfg, keySvc: ks, clientSvc: cs, userSvc: us, sessionSvc: ss, tokenSvc: ts, codeSvc: codes, consentSvc: cons, refreshSvc: rs, revokeSvc: rv, logSvc: ls, tokenRepo: tr, rdb: rdb, dpopVerifier: dv}
+func New(cfg config.Config, ks *services.KeyService, cs *services.ClientService, us *services.UserService, ss *services.SessionService, ts *services.TokenService, codes *services.CodeService, cons *services.ConsentService, rs *services.RefreshService, rv *services.RevocationService, ls *services.LogService, tr *services.TokenRepo, rdb *redis.Client, dv *services.DPoPVerifier, settings *services.SettingService) *Handler {
+	return &Handler{cfg: cfg, keySvc: ks, clientSvc: cs, userSvc: us, sessionSvc: ss, tokenSvc: ts, codeSvc: codes, consentSvc: cons, refreshSvc: rs, revokeSvc: rv, logSvc: ls, tokenRepo: tr, rdb: rdb, dpopVerifier: dv, settingSvc: settings}
 }
 
 // RegisterRoutes 在 Gin 路由上挂载 OP 的全部端点（Discovery、JWKS、动态注册、授权、令牌、用户信息、注销等）。
