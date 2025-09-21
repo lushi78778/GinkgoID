@@ -1,0 +1,113 @@
+# -----------------------------------------------------------------------------
+# GinkgoID Configuration Example
+# -----------------------------------------------------------------------------
+# 使用说明：
+# 1. 复制本文件为 config.yaml，并根据环境变量/密钥管理修改敏感信息。
+# 2. 如需通过环境变量覆盖，可在启动前设置 GINKGOID_* 变量或在容器中挂载。
+# 3. 所有时长字段支持 Go duration 语法 (15m, 24h 等)。
+# -----------------------------------------------------------------------------
+
+# 运行环境：dev / prod
+# dev 模式将放宽部分审批与安全校验，便于本地联调。
+env: dev
+
+# HTTP 监听地址
+http_addr: ":8080"
+
+# Issuer 必须是对外访问地址（生产环境须为 https）
+issuer: "https://id.example.com"
+
+# OpenAPI / Stoplight 文档配置
+docs:
+  enable: true
+  route: "/docs"
+  spec_path: docs/swagger.json
+  page_path: web/stoplight.html
+
+# MySQL 数据库连接信息
+mysql:
+  host: db.internal
+  port: 3306
+  user: ginkgo
+  password: change-me
+  db: ginkgoid
+  params: parseTime=true&loc=Local&charset=utf8mb4,utf8
+
+# Redis 用于存储会话、授权码、刷新令牌等缓存
+redis:
+  addr: redis.internal:6379
+  db: 0
+  password: ""
+
+# 加密与签名设置
+crypto:
+  id_token_alg: RS256
+  # 可选：用于数据库中的私钥对称加密，建议 32 字节 base64 值
+  key_encryption_key: ""
+
+# Token TTL 配置
+token:
+  access_token_ttl: 1h
+  id_token_ttl: 15m
+  refresh_token_ttl: 720h
+  code_ttl: 1m
+  code_length: 32
+  registration_pat_ttl: 24h
+  require_pkce_s256: true
+
+# 浏览器会话 Cookie 设置
+session:
+  cookie_name: op_session
+  cookie_domain: ""
+  cookie_secure: true
+  cookie_samesite: lax
+  ttl: 24h
+
+# Pairwise subject 配置（如不需要可关闭）
+pairwise:
+  enable: true
+  salt: replace-with-long-random-string
+
+# CORS 配置（仅在需要跨域访问 /userinfo 时启用）
+cors:
+  enable_userinfo: false
+  allowed_origins: []
+
+# 动态客户端注册策略
+registration:
+  require_approval: true
+  initial_access_token: ""
+  sector_timeout: 3s
+  allow_insecure_local_http: true
+
+# 登录/令牌接口限流
+limits:
+  login_per_minute: 10
+  token_per_minute: 60
+  window: 1m
+
+# 安全相关 HTTP 头配置
+security:
+  hsts:
+    enabled: true
+    max_age: 31536000
+    include_subdomains: true
+
+# DPoP（可选）
+dpop:
+  replay_window: 5m
+  clock_skew: 1m
+
+# ACR/MFA 建议
+acr:
+  minimum: ""
+  suggest_mfa: true
+
+# 首次启动的引导管理员账号（仅首次建表时生效）
+bootstrap:
+  initial_admin:
+    enable: true
+    username: admin
+    password: "ChangeMe!2025"
+    email: admin@example.com
+    name: Administrator

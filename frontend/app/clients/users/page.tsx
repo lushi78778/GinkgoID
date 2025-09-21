@@ -42,20 +42,30 @@ const fallbackUsers: AuthorizedUser[] = [
   },
 ];
 
+async function raiseForStatus(res: Response): Promise<Response> {
+  if (res.ok) {
+    return res;
+  }
+  const text = await res.text();
+  const error: any = new Error(text || res.statusText);
+  error.status = res.status;
+  throw error;
+}
+
 export default function ClientUsersPage() {
   const { me } = useAuth();
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [users, setUsers] = useState<AuthorizedUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
 
   const canAccess = me?.is_admin || (me as any)?.is_dev;
 
   const loadClients = useCallback(async () => {
     try {
-      const res = await fetch("/api/my/clients", { credentials: "include" });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await raiseForStatus(await fetch("/api/my/clients", { credentials: "include" }));
       const data = await res.json();
       if (!Array.isArray(data)) throw new Error("响应格式不正确");
       setClients(data);
@@ -71,8 +81,9 @@ export default function ClientUsersPage() {
     if (!selected) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/my/clients/${encodeURIComponent(selected)}/users`, { credentials: "include" });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await raiseForStatus(
+        await fetch(`/api/my/clients/${encodeURIComponent(selected)}/users`, { credentials: "include" }),
+      );
       const data = await res.json();
       if (!Array.isArray(data)) throw new Error("响应格式不正确");
       const mapped: AuthorizedUser[] = data.map((item: any) => ({
@@ -85,8 +96,16 @@ export default function ClientUsersPage() {
         scopes: Array.isArray(item.scopes) ? item.scopes : String(item.scope ?? "").split(/\s+/).filter(Boolean),
       }));
       setUsers(mapped);
+      setFallbackMessage(null);
     } catch (err: any) {
-      toast.error(err?.message || "无法获取用户列表，展示示例数据");
+      const status = err?.status ?? 0;
+      if (status === 501) {
+        toast.error("后端尚未提供授权用户列表，展示示例数据");
+        setFallbackMessage("授权用户列表接口尚未实现，以下为示例数据。");
+      } else {
+        toast.error(err?.message || "无法获取用户列表，暂以示例数据展示");
+        setFallbackMessage("暂时无法获取授权用户列表，以下内容为示例数据，稍后可重试。");
+      }
       setUsers(fallbackUsers);
     } finally {
       setLoading(false);
@@ -104,11 +123,12 @@ export default function ClientUsersPage() {
   const revokeUser = async (userId: number) => {
     if (!window.confirm("确定要解除该用户的授权吗？")) return;
     try {
-      const res = await fetch(`/api/my/clients/${encodeURIComponent(selected)}/users/${userId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(await res.text());
+      await raiseForStatus(
+        await fetch(`/api/my/clients/${encodeURIComponent(selected)}/users/${userId}`, {
+          method: "DELETE",
+          credentials: "include",
+        }),
+      );
       toast.success("已解除授权");
       await loadUsers();
     } catch (err: any) {
@@ -166,6 +186,11 @@ export default function ClientUsersPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {fallbackMessage && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {fallbackMessage}
+            </div>
+          )}
           <div className="grid gap-1">
             <label className="text-xs font-semibold uppercase text-muted-foreground">搜索</label>
             <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="用户名、邮箱或 Scope" />
@@ -210,7 +235,7 @@ export default function ClientUsersPage() {
                       {user.last_login ? new Date(user.last_login * 1000).toLocaleString() : "-"}
                     </TableCell>
                     <TableCell>
-                      <Button variant="destructive" size="sm" onClick={() => revokeUser(user.user_id)}>
+                      <Button variant="destructive" size="sm" onClick={() => revokeUser(user.user_id)} disabled={Boolean(fallbackMessage)}>
                         解除授权
                       </Button>
                     </TableCell>

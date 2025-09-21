@@ -27,6 +27,16 @@ const fallbackBranding: BrandingSettings = {
   email_body: "您好 {{user.name}}，欢迎使用 GinkgoID。点击下方按钮完成设置。",
 };
 
+async function raiseForStatus(res: Response): Promise<Response> {
+  if (res.ok) {
+    return res;
+  }
+  const text = await res.text();
+  const error: any = new Error(text || res.statusText);
+  error.status = res.status;
+  throw error;
+}
+
 export default function BrandingPage() {
   const { me } = useAuth();
   const isAdmin = Boolean(me?.is_admin);
@@ -35,19 +45,27 @@ export default function BrandingPage() {
   const [previewLogo, setPreviewLogo] = useState<string | null>(null);
   const [previewDarkLogo, setPreviewDarkLogo] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAdmin) return;
     (async () => {
       try {
-        const res = await fetch("/api/admin/branding", { credentials: "include" });
-        if (!res.ok) throw new Error(await res.text());
+        const res = await raiseForStatus(await fetch("/api/admin/branding", { credentials: "include" }));
         const data = await res.json();
         setBranding({ ...fallbackBranding, ...data });
         setPreviewLogo(data.logo_url || null);
         setPreviewDarkLogo(data.dark_mode_logo_url || null);
+        setFallbackMessage(null);
       } catch (err: any) {
-        toast.error(err?.message || "无法加载品牌配置，展示示例数据");
+        const status = err?.status ?? 0;
+        if (status === 501) {
+          toast.error("后端尚未提供品牌配置接口，展示示例数据");
+          setFallbackMessage("品牌配置接口尚未实现，以下配置为示例数据。");
+        } else {
+          toast.error(err?.message || "无法加载品牌配置，暂以示例数据展示");
+          setFallbackMessage("暂时无法加载品牌配置，以下为示例数据，稍后可重试。");
+        }
       }
     })();
   }, [isAdmin]);
@@ -65,13 +83,14 @@ export default function BrandingPage() {
   const saveBranding = async () => {
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/branding", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(branding),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await raiseForStatus(
+        await fetch("/api/admin/branding", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(branding),
+        }),
+      );
       toast.success("品牌设置已保存");
     } catch (err: any) {
       toast.error(err?.message || "保存失败 (后端可能未实现) ");
@@ -100,6 +119,11 @@ export default function BrandingPage() {
 
   return (
     <div className="container py-10 space-y-6">
+      {fallbackMessage && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          {fallbackMessage}
+        </div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>主题色与 Logo</CardTitle>

@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: build run fmt vet lint e2e docker docker-up docker-down ci swagger
+.PHONY: build run fmt vet lint e2e docker docker-up docker-down ci swagger clean
 
 build:
 	go build ./...
@@ -37,3 +37,9 @@ docker-down:
 ci: fmt vet build
 	@echo "CI checks passed"
 
+clean:
+	@echo "Cleaning build artifacts and caches..."
+	@go clean -cache -testcache >/dev/null 2>&1 || true
+	@rm -f server e2e ginkgoid
+	@rm -rf frontend/.next frontend/out frontend/node_modules
+	@echo "Done."

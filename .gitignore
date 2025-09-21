@@ -1,19 +1,45 @@
-# IDE folders
-.idea/
-.vscode/
-
 # macOS
 .DS_Store
 
-# Binaries and build artifacts
-bin/
-dist/
-
-# Node artifacts
-frontend/node_modules/
-frontend/.next/
-frontend/out/
-frontend/test-results/
+# IDEs & editors
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
 
 # Logs
 *.log
+
+# Local configuration
+config.yaml
+
+# Go build artifacts
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.prof
+coverage.*
+
+# Node/Next.js artifacts
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+frontend/.vercel/
+frontend/coverage/
+frontend/npm-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+
+# Docker compose runtime data
+*.pid
+
+# Generated SPA assets copied from Next export
+web/app/_next/

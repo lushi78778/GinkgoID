@@ -1,5 +1,42 @@
 basePath: /
 definitions:
+  handlers.brandingSetting:
+    properties:
+      accent_color:
+        type: string
+      background_color:
+        type: string
+      dark_mode_logo_url:
+        type: string
+      email_body:
+        type: string
+      email_subject:
+        type: string
+      logo_url:
+        type: string
+      primary_color:
+        type: string
+    type: object
+  handlers.mePreferenceReq:
+    properties:
+      marketing_opt_in:
+        type: boolean
+    type: object
+  handlers.policySetting:
+    properties:
+      password_min_length:
+        type: integer
+      password_require_number:
+        type: boolean
+      password_require_symbol:
+        type: boolean
+      refresh_token_ttl_days:
+        type: integer
+      require_mfa:
+        type: boolean
+      token_ttl_seconds:
+        type: integer
+    type: object
   oidc.Discovery:
     properties:
       acr_values_supported:
@@ -148,6 +185,10 @@ definitions:
     properties:
       createdAt:
         type: string
+      deletionReason:
+        type: string
+      deletionRequestedAt:
+        type: string
       email:
         type: string
       emailVerified:
@@ -158,10 +199,28 @@ definitions:
         type: boolean
       isDev:
         type: boolean
+      marketingOptIn:
+        type: boolean
+      mfaenabled:
+        type: boolean
+      mfaenrolledAt:
+        type: string
+      mfalastUsedAt:
+        type: string
+      mfapendingRecoveryCodes:
+        type: string
+      mfapendingSecret:
+        type: string
+      mfarecoveryCodes:
+        type: string
+      mfasecret:
+        type: string
       name:
         type: string
       password:
         description: 已哈希的口令
+        type: string
+      pendingEmail:
         type: string
       updatedAt:
         type: string
@@ -203,6 +262,294 @@ paths:
       summary: OIDC Discovery
       tags:
       - discovery
+  /api/admin/branding:
+    get:
+      description: 读取管理控制台的品牌配色与邮箱模板
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 获取品牌配置
+      tags:
+      - admin-api
+    put:
+      consumes:
+      - application/json
+      description: 保存控制台主题色、Logo 与邮件模板
+      parameters:
+      - description: 品牌配置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.brandingSetting'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 更新品牌配置
+      tags:
+      - admin-api
+  /api/admin/clients/{client_id}/approve:
+    post:
+      parameters:
+      - description: 客户端ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 管理员 - 审批通过客户端
+      tags:
+      - admin-api
+  /api/admin/clients/{client_id}/reject:
+    post:
+      parameters:
+      - description: 客户端ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      - description: '{reason}'
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 管理员 - 审批拒绝客户端
+      tags:
+      - admin-api
+  /api/admin/clients/pending:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 管理员 - 待审批客户端列表
+      tags:
+      - admin-api
+  /api/admin/metrics:
+    get:
+      description: 汇总平台用户、客户端与登录统计
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 管理员仪表盘指标
+      tags:
+      - admin-api
+  /api/admin/policies:
+    put:
+      consumes:
+      - application/json
+      description: 保存口令复杂度、令牌 TTL、MFA 要求等策略
+      parameters:
+      - description: 安全策略
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.policySetting'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 更新安全策略
+      tags:
+      - admin-api
+  /api/admin/roles:
+    put:
+      consumes:
+      - application/json
+      description: 设置平台角色及其权限列表
+      parameters:
+      - description: 角色列表
+        in: body
+        name: body
+        required: true
+        schema:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 更新角色权限
+      tags:
+      - admin-api
+  /api/admin/scopes:
+    put:
+      consumes:
+      - application/json
+      description: 覆盖平台支持的 scope 列表及对应 claim
+      parameters:
+      - description: Scope 列表
+        in: body
+        name: body
+        required: true
+        schema:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 更新 scope 配置
+      tags:
+      - admin-api
+  /api/admin/settings:
+    get:
+      description: 读取平台的 scope、角色与安全策略配置
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 管理员设置读取
+      tags:
+      - admin-api
   /api/consents:
     get:
       description: 列出当前用户对各客户端已授予的 scope
@@ -250,6 +597,51 @@ paths:
       summary: 撤销授权
       tags:
       - consent-api
+  /api/logs:
+    get:
+      parameters:
+      - description: 开始时间(Unix秒)
+        in: query
+        name: from
+        type: string
+      - description: 结束时间(Unix秒)
+        in: query
+        name: to
+        type: string
+      - description: 级别
+        in: query
+        name: level
+        type: string
+      - description: 事件
+        in: query
+        name: event
+        type: string
+      - description: 用户ID
+        format: int64
+        in: query
+        name: user
+        type: integer
+      - description: 客户端ID
+        in: query
+        name: client
+        type: string
+      - description: 数量(<=1000)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      summary: 管理员 - 审计日志查询
+      tags:
+      - admin-api
   /api/me:
     get:
       description: 读取当前登录用户的基础资料
@@ -304,6 +696,27 @@ paths:
       summary: 更新我的资料
       tags:
       - user-api
+  /api/me/email/verify:
+    post:
+      description: 当前未配置邮件发送服务时会返回 501
+      produces:
+      - application/json
+      responses:
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "501":
+          description: Not Implemented
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 请求发送邮箱验证
+      tags:
+      - user-api
   /api/me/password:
     post:
       consumes:
@@ -336,6 +749,41 @@ paths:
               type: string
             type: object
       summary: 修改我的口令
+      tags:
+      - user-api
+  /api/me/preferences:
+    put:
+      consumes:
+      - application/json
+      description: 修改当前登录用户的营销订阅等偏好设置
+      parameters:
+      - description: 偏好设置
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.mePreferenceReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 更新用户偏好
       tags:
       - user-api
   /api/my/clients:
@@ -391,9 +839,45 @@ paths:
       summary: 删除我的客户端
       tags:
       - client-api
+  /api/my/clients/{client_id}/analytics:
+    get:
+      description: 获取客户端最近授权与登录统计信息
+      parameters:
+      - description: 客户端 ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      - description: 统计周期
+        in: query
+        name: period
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 客户端统计
+      tags:
+      - developer-api
   /api/my/clients/{client_id}/disable:
     put:
-      description: 将指定客户端置为未批准（approved=false）
+      description: 将指定客户端置为禁用状态（enabled=false）
       parameters:
       - description: 客户端 ID
         in: path
@@ -422,6 +906,434 @@ paths:
       summary: 禁用我的客户端
       tags:
       - client-api
+  /api/my/clients/{client_id}/enable:
+    put:
+      description: 将指定客户端置为启用状态（enabled=true）
+      parameters:
+      - description: 客户端 ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 启用我的客户端
+      tags:
+      - client-api
+  /api/my/clients/{client_id}/logs:
+    get:
+      description: 查询当前登录用户拥有的客户端的授权与令牌日志
+      parameters:
+      - description: 客户端 ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      - description: 日志级别
+        in: query
+        name: level
+        type: string
+      - description: 关键字过滤
+        in: query
+        name: q
+        type: string
+      - description: 返回数量
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 客户端日志
+      tags:
+      - developer-api
+  /api/my/clients/{client_id}/users:
+    get:
+      description: 列出指定客户端已授权的终端用户
+      parameters:
+      - description: 客户端 ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 客户端授权用户
+      tags:
+      - developer-api
+  /api/my/clients/{client_id}/users/{user_id}:
+    delete:
+      description: 撤销指定用户对客户端的授权
+      parameters:
+      - description: 客户端 ID
+        in: path
+        name: client_id
+        required: true
+        type: string
+      - description: 用户 ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 解除客户端授权
+      tags:
+      - developer-api
+  /api/privacy/delete:
+    post:
+      description: 提交删除当前用户数据的请求
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 删除个人数据
+      tags:
+      - user-privacy
+  /api/privacy/export:
+    post:
+      description: 触发当前用户的数据导出请求，生成临时下载链接
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 导出个人数据
+      tags:
+      - user-privacy
+  /api/privacy/export/{token}:
+    get:
+      description: 通过导出令牌下载个人数据归档
+      parameters:
+      - description: 导出令牌
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/zip
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 下载导出结果
+      tags:
+      - user-privacy
+  /api/security/mfa:
+    delete:
+      description: 禁用当前用户的多因素认证配置
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 关闭 MFA
+      tags:
+      - user-security
+    get:
+      description: 读取当前用户的多因素认证配置，包括密钥、恢复码等
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 获取 MFA 状态
+      tags:
+      - user-security
+  /api/security/mfa/activate:
+    post:
+      consumes:
+      - application/json
+      description: 校验一次性验证码并启用当前用户的 MFA
+      parameters:
+      - description: 验证码参数
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 激活 MFA
+      tags:
+      - user-security
+  /api/security/mfa/setup:
+    post:
+      description: 为当前用户生成新的 TOTP 秘钥和恢复码用于绑定 MFA
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 生成 MFA 绑定信息
+      tags:
+      - user-security
+  /api/security/sessions:
+    delete:
+      description: 注销除当前会话外的全部登录会话
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 注销其他会话
+      tags:
+      - user-security
+    get:
+      description: 列出当前用户的所有活跃会话
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 会话列表
+      tags:
+      - user-security
+  /api/security/sessions/{id}:
+    delete:
+      description: 注销当前用户的指定会话 ID
+      parameters:
+      - description: 会话 ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 注销指定会话
+      tags:
+      - user-security
+  /api/self/logs:
+    get:
+      description: 查询当前登录用户的安全事件日志，可按级别、关键词和时间范围过滤
+      parameters:
+      - description: 日志级别
+        in: query
+        name: level
+        type: string
+      - description: 关键字过滤
+        in: query
+        name: search
+        type: string
+      - description: 起始时间(YYYY-MM-DD 或 Unix 秒)
+        in: query
+        name: from
+        type: string
+      - description: 结束时间(YYYY-MM-DD 或 Unix 秒)
+        in: query
+        name: to
+        type: string
+      - description: 返回数量上限
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 用户安全日志
+      tags:
+      - user-api
   /api/users:
     get:
       produces:

@@ -22,9 +22,10 @@ export default function PrivacyAndData() {
       const data = await res.json();
       setDownloadLink(data.download_url || data.url || null);
       setExportRequestedAt(Date.now());
-      toast.success("数据导出请求已提交，请查收邮件或稍后刷新此页面");
+      const message = data?.message || "数据导出任务已生成，可通过下方链接下载（15 分钟内有效）。";
+      toast.success(message);
     } catch (err: any) {
-      toast.error(err?.message || "无法提交导出请求，示例链接将显示");
+      toast.error(err?.message || "无法提交导出请求，已提供示例下载链接");
       setDownloadLink("https://example.com/ginkgoid-data-export.json");
       setExportRequestedAt(Date.now());
     } finally {
@@ -43,7 +44,14 @@ export default function PrivacyAndData() {
         body: JSON.stringify({ reason: deleteReason }),
       });
       if (!res.ok) throw new Error(await res.text());
-      toast.success("已提交账户删除请求，请查看邮箱确认邮件");
+      let message = "已记录账户删除请求，管理员将尽快处理";
+      try {
+        const data = await res.json();
+        message = data?.message || message;
+      } catch (_) {
+        // ignore
+      }
+      toast.success(message);
     } catch (err: any) {
       toast.error(err?.message || "提交失败，功能可能待后端实现");
     } finally {
@@ -56,11 +64,11 @@ export default function PrivacyAndData() {
       <Card>
         <CardHeader>
           <CardTitle>个人数据导出</CardTitle>
-          <CardDescription>导出包含个人资料、授权记录及安全日志的 JSON 文件，用于审计或自助备份。</CardDescription>
+          <CardDescription>导出包含个人资料、授权记录及安全日志的 JSON 文件，可直接下载保存。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            导出任务将在后台异步生成，完成后会发送邮件通知，并提供一次性下载链接。链接有效期 24 小时。
+            导出任务将在后台生成，并提供一次性下载链接（15 分钟内有效）。如需长期保存，请及时下载并妥善存档。
           </p>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <Button onClick={requestExport} disabled={exporting}>
@@ -86,11 +94,11 @@ export default function PrivacyAndData() {
       <Card>
         <CardHeader>
           <CardTitle>账户删除</CardTitle>
-          <CardDescription>自助提交账户删除请求，需通过邮箱完成最终确认。删除后将清理所有会话和授权记录。</CardDescription>
+          <CardDescription>自助提交账户删除请求，系统会记录并通知管理员审核，审核通过后将清理所有会话和授权记录。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            根据隐私法规，账户将在确认后 7 天内彻底删除。在此期间可通过联系管理员撤回请求。我们建议先完成数据导出。
+            根据隐私法规，账户在管理员确认后 7 天内彻底删除。在此期间可通过联系管理员撤回请求。我们建议先完成数据导出。
           </p>
           <div className="grid gap-2 max-w-lg">
             <Label htmlFor="delete-reason">删除原因（选填，将随请求发送给管理员）</Label>
@@ -102,7 +110,7 @@ export default function PrivacyAndData() {
             />
           </div>
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-            删除请求确认后将：注销所有会话、撤销所有客户端授权、删除个人资料及安全日志。操作不可逆，请谨慎执行。
+            删除请求提交后：我们会注销所有会话、撤销所有客户端授权并清理个人资料及安全日志。操作不可逆，请谨慎执行。
           </div>
           <Button variant="destructive" onClick={confirmDelete} disabled={deleteLoading}>
             {deleteLoading ? "提交中..." : "提交删除请求"}

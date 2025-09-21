@@ -69,6 +69,8 @@
         <input type="text" name="username" autocomplete="username" value="{{ with index .params "username" }}{{ index . 0 }}{{ else }}{{ with index .params "login_hint" }}{{ index . 0 }}{{ end }}{{ end }}">
         <label>密码</label>
         <input type="password" name="password" autocomplete="current-password">
+        <label>动态验证码（已启用 MFA 时必填）</label>
+        <input type="text" name="otp" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="六位验证码">
         <div class="actions">
             <button type="submit">登录</button>
         </div>

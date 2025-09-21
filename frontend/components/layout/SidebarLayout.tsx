@@ -29,7 +29,7 @@ const navItems: NavItem[] = [
   { section: '开发者', label: '授权用户', to: '/clients/users', dev: true },
   { section: '开发者', label: '应用分析', to: '/clients/analytics', dev: true },
   { section: '开发者', label: '平台状态', to: '/status', dev: true },
-  { section: '开发者', label: 'OIDC 文档', to: '/docs', dev: true },
+  { section: '开发者', label: 'OIDC 指引', to: '/guides/oidc', dev: true },
   { section: '管理员', label: '全局仪表盘', to: '/admin/dashboard', admin: true },
   { section: '管理员', label: '用户管理', to: '/admin/users', admin: true },
   { section: '管理员', label: '客户端审批', to: '/admin/approvals', admin: true },

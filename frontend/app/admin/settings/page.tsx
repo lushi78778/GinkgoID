@@ -51,6 +51,16 @@ const fallbackPolicies: PolicySettings = {
   require_mfa: false,
 };
 
+async function raiseForStatus(res: Response): Promise<Response> {
+  if (res.ok) {
+    return res;
+  }
+  const text = await res.text();
+  const error: any = new Error(text || res.statusText);
+  error.status = res.status;
+  throw error;
+}
+
 export default function AdminSettings() {
   const { me } = useAuth();
   const isAdmin = Boolean(me?.is_admin);
@@ -60,19 +70,27 @@ export default function AdminSettings() {
   const [roles, setRoles] = useState<RoleItem[]>(fallbackRoles);
   const [policies, setPolicies] = useState<PolicySettings>(fallbackPolicies);
   const [savingPolicies, setSavingPolicies] = useState(false);
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAdmin) return;
     (async () => {
       try {
-        const res = await fetch("/api/admin/settings", { credentials: "include" });
-        if (!res.ok) throw new Error(await res.text());
+        const res = await raiseForStatus(await fetch("/api/admin/settings", { credentials: "include" }));
         const data = await res.json();
         if (Array.isArray(data.scopes)) setScopes(data.scopes);
         if (Array.isArray(data.roles)) setRoles(data.roles);
         if (data.policies) setPolicies({ ...fallbackPolicies, ...data.policies });
+        setFallbackMessage(null);
       } catch (err: any) {
-        toast.error(err?.message || "无法加载设置，展示示例数据");
+        const status = err?.status ?? 0;
+        if (status === 501) {
+          toast.error("后端尚未提供系统设置接口，展示示例数据");
+          setFallbackMessage("系统设置接口尚未实现，以下配置为示例数据。");
+        } else {
+          toast.error(err?.message || "无法加载设置，暂以示例数据展示");
+          setFallbackMessage("暂时无法加载系统设置，以下内容为示例数据，稍后再试。");
+        }
       }
     })();
   }, [isAdmin]);
@@ -120,13 +138,14 @@ export default function AdminSettings() {
 
   const saveScopes = async () => {
     try {
-      const res = await fetch("/api/admin/scopes", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(scopes),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await raiseForStatus(
+        await fetch("/api/admin/scopes", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(scopes),
+        }),
+      );
       toast.success("Scope 配置已保存");
     } catch (err: any) {
       toast.error(err?.message || "保存失败 (后端可能未实现)");
@@ -150,13 +169,14 @@ export default function AdminSettings() {
 
   const saveRoles = async () => {
     try {
-      const res = await fetch("/api/admin/roles", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(roles),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await raiseForStatus(
+        await fetch("/api/admin/roles", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(roles),
+        }),
+      );
       toast.success("角色权限配置已保存");
     } catch (err: any) {
       toast.error(err?.message || "保存失败 (后端可能未实现)");
@@ -166,13 +186,14 @@ export default function AdminSettings() {
   const savePolicies = async () => {
     setSavingPolicies(true);
     try {
-      const res = await fetch("/api/admin/policies", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(policies),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await raiseForStatus(
+        await fetch("/api/admin/policies", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(policies),
+        }),
+      );
       toast.success("安全策略已保存");
     } catch (err: any) {
       toast.error(err?.message || "保存失败 (后端可能未实现)");
@@ -183,6 +204,11 @@ export default function AdminSettings() {
 
   return (
     <div className="container py-10 space-y-6">
+      {fallbackMessage && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          {fallbackMessage}
+        </div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Scope 管理</CardTitle>

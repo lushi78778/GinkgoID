@@ -1,40 +1,66 @@
+# -----------------------------------------------------------------------------
+# docker-compose.yml for GinkgoID
+# -----------------------------------------------------------------------------
+# 可调节变量（可在 .env 中定义或构建时覆盖）：
+#   MYSQL_IMAGE            - MySQL 镜像版本 (默认 mysql:8.0)
+#   MYSQL_PORT             - MySQL 暴露端口 (默认 3306)
+#   MYSQL_ROOT_PASSWORD    - MySQL root 密码
+#   MYSQL_DATABASE         - GinkgoID 使用的数据库名
+#   REDIS_IMAGE            - Redis 镜像版本 (默认 redis:7-alpine)
+#   REDIS_PORT             - Redis 暴露端口 (默认 6379)
+#   GINKGOID_IMAGE         - 应用镜像名称 (默认 ginkgoid:latest)
+#   GINKGOID_HTTP_PORT     - 应用暴露端口 (默认 8080)
+#   CONFIG_PATH            - 本地 config.yaml 挂载路径
+# -----------------------------------------------------------------------------
+
 services:
   mysql:
-    image: mysql:8.0
+    image: ${MYSQL_IMAGE:-mysql:8.0}
     environment:
-      # 开发默认值请在 .env 或运行时覆盖，切勿用于生产
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-devOnly123!}
-      MYSQL_DATABASE: ginkgoid
-    ports:
-      - "3306:3306"
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-ChangeMe123!}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ginkgoid}
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "sh", "-lc", "mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD:-123465}"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-ChangeMe123!}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   redis:
-    image: redis:7-alpine
+    image: ${REDIS_IMAGE:-redis:7-alpine}
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    volumes:
+      - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
-  server:
-    build: .
-    image: ginkgoid:latest
+  ginkgoid:
+    image: ${GINKGOID_IMAGE:-ginkgoid:latest}
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
-    environment: {}
+    environment:
+      GINKGOID_CONFIG: /app/config/config.yaml
+      GINKGOID_LOG_LEVEL: info
     ports:
-      - "8080:8080"
+      - "${GINKGOID_HTTP_PORT:-8080}:8080"
     volumes:
-      - ./config.yaml:/app/config.yaml:ro
+      - ${CONFIG_PATH:-./config.yaml}:/app/config/config.yaml:ro
+      - static-assets:/app/web:ro
+    restart: unless-stopped
 
+volumes:
+  mysql-data:
+  redis-data:
+  static-assets:

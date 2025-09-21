@@ -185,7 +185,7 @@ func (h *Handler) apiMe(c *gin.Context) {
 	}
 	msg := ""
 	if !u.EmailVerified {
-		msg = "邮箱尚未验证，部分敏感操作将受到限制"
+		msg = "邮箱尚未验证。如需启用邮件验证，请联系管理员配置邮件服务"
 	}
 	if u.PendingEmail != "" {
 		msg = "新邮箱待验证，请查收验证邮件"
@@ -285,6 +285,15 @@ func (h *Handler) apiChangePassword(c *gin.Context) {
 }
 
 // 启用我拥有的客户端（Approved=true）
+// @Summary      启用我的客户端
+// @Description  将指定客户端置为启用状态（enabled=true）
+// @Tags         client-api
+// @Produce      json
+// @Param        client_id path string true "客户端 ID"
+// @Success      204 {string} string "No Content"
+// @Failure      401 {object} map[string]string
+// @Failure      403 {object} map[string]string
+// @Router       /api/my/clients/{client_id}/enable [put]
 func (h *Handler) apiMyEnableClient(c *gin.Context) {
 	uidp, err := h.currentUser(c)
 	if err != nil {

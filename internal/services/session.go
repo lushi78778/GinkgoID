@@ -17,11 +17,14 @@ import (
 // Session 表示 OP 维护的浏览器会话。
 // 存储在 Redis：key=session:<sid>，值为 JSON。
 type Session struct {
-	SID      string    `json:"sid"`
-	UserID   uint64    `json:"user_id"`
-	ACR      string    `json:"acr"`
-	AMR      []string  `json:"amr"`
-	AuthTime time.Time `json:"auth_time"`
+	SID       string    `json:"sid"`
+	UserID    uint64    `json:"user_id"`
+	ACR       string    `json:"acr"`
+	AMR       []string  `json:"amr"`
+	AuthTime  time.Time `json:"auth_time"`
+	LastSeen  time.Time `json:"last_seen,omitempty"`
+	UserAgent string    `json:"user_agent,omitempty"`
+	IP        string    `json:"ip,omitempty"`
 }
 
 // SessionService 提供 OP 会话的创建/读取/删除能力。
@@ -34,10 +37,17 @@ func NewSessionService(rdb *redis.Client, cfg config.Config) *SessionService {
 	return &SessionService{rdb: rdb, cfg: cfg}
 }
 
-func (s *SessionService) New(ctx context.Context, userID uint64, acr string, amr []string) (*Session, error) {
+func (s *SessionService) New(ctx context.Context, userID uint64, acr string, amr []string, ip string, ua string) (*Session, error) {
 	sid := uuid.NewString()
 	sess := &Session{
-		SID: sid, UserID: userID, ACR: acr, AMR: amr, AuthTime: time.Now(),
+		SID:       sid,
+		UserID:    userID,
+		ACR:       acr,
+		AMR:       amr,
+		AuthTime:  time.Now(),
+		LastSeen:  time.Now(),
+		UserAgent: ua,
+		IP:        ip,
 	}
 	b, _ := json.Marshal(sess)
 	key := fmt.Sprintf("session:%s", sid)
@@ -56,6 +66,9 @@ func (s *SessionService) Get(ctx context.Context, sid string) (*Session, error) 
 	var sess Session
 	if err := json.Unmarshal([]byte(cmd.Val()), &sess); err != nil {
 		return nil, err
+	}
+	if sess.LastSeen.IsZero() {
+		sess.LastSeen = sess.AuthTime
 	}
 	return &sess, nil
 }
@@ -80,6 +93,9 @@ func (s *SessionService) ListByUser(ctx context.Context, userID uint64) ([]Sessi
 			continue
 		}
 		if sess.UserID == userID {
+			if sess.LastSeen.IsZero() {
+				sess.LastSeen = sess.AuthTime
+			}
 			result = append(result, sess)
 		}
 	}

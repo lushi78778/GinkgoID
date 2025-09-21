@@ -140,6 +140,18 @@ export default function Profile() {
     setSendingVerification(true);
     try {
       const res = await fetch("/api/me/email/verify", { method: "POST", credentials: "include" });
+      if (res.status === 501) {
+        let message = "系统未启用邮箱发送，请联系管理员";
+        try {
+          const data = await res.json();
+          message = data?.message || data?.error || message;
+        } catch (_) {
+          // ignore json parse failure
+        }
+        setEmailStatus(message);
+        toast.error(message);
+        return;
+      }
       if (!res.ok) throw new Error(await res.text());
       toast.success("验证邮件已发送，请查看收件箱");
       setEmailStatus("已发送验证邮件");

@@ -41,6 +41,8 @@ func main() {
 	log.SetOutput(os.Stdout)
 	log.SetLevel(log.InfoLevel)
 
+	startup := time.Now()
+	cfgLoadStart := time.Now()
 	// 加载配置（以配置文件为主，配合内置默认值）
 	cfg := config.Load()
 	if strings.TrimSpace(cfg.Issuer) == "" {
@@ -68,26 +70,43 @@ func main() {
 		"redis_addr":    cfg.Redis.Addr,
 		"issuer":        cfg.Issuer,
 		"cors_userinfo": cfg.CORS.EnableUserInfo,
+		"took_ms":       time.Since(cfgLoadStart).Milliseconds(),
 	}).Info("configuration loaded")
 
 	// 初始化存储（MySQL + Redis）
+	mysqlStart := time.Now()
 	db, err := storage.InitMySQL(cfg)
 	if err != nil {
 		log.WithError(err).Fatal("failed to connect mysql")
 	}
 	defer storage.CloseMySQL(db)
+	log.WithFields(log.Fields{
+		"stage":   "storage.mysql",
+		"took_ms": time.Since(mysqlStart).Milliseconds(),
+	}).Info("mysql connected")
 
+	redisStart := time.Now()
 	rdb, err := storage.InitRedis(cfg)
 	if err != nil {
 		log.WithError(err).Fatal("failed to connect redis")
 	}
 	defer func() { _ = rdb.Close() }()
+	log.WithFields(log.Fields{
+		"stage":   "storage.redis",
+		"took_ms": time.Since(redisStart).Milliseconds(),
+	}).Info("redis connected")
 
 	// 初始化核心服务
+	svcInitStart := time.Now()
 	keySvc := services.NewKeyService(db, cfg)
+	keyEnsureStart := time.Now()
 	if err := keySvc.EnsureActiveKey(context.Background()); err != nil {
 		log.WithError(err).Fatal("ensure active signing key")
 	}
+	log.WithFields(log.Fields{
+		"stage":   "services.ensure_active_key",
+		"took_ms": time.Since(keyEnsureStart).Milliseconds(),
+	}).Info("active signing key ready")
 	clientSvc := services.NewClientService(db, cfg)
 	userSvc := services.NewUserService(db)
 	consentSvc := services.NewConsentService(db)
@@ -100,6 +119,10 @@ func main() {
 	tokenRepo := services.NewTokenRepo(db)
 	dpopVerifier := services.NewDPoPVerifier(rdb, cfg.DPoP.ReplayWindow, cfg.DPoP.ClockSkew)
 	settingSvc := services.NewSettingService(db)
+	log.WithFields(log.Fields{
+		"stage":   "services.init",
+		"took_ms": time.Since(svcInitStart).Milliseconds(),
+	}).Info("core services ready")
 
 	// HTTP 路由与中间件
 	if cfg.Env == "prod" {
@@ -113,18 +136,25 @@ func main() {
 	router.Use(metrics.Handler())
 
 	// 装载 HTTP 处理器
+	handlerStart := time.Now()
 	h := handlers.New(
 		cfg, keySvc, clientSvc, userSvc, sessionSvc, tokenSvc, codeSvc, consentSvc, refreshSvc, revokeSvc, logSvc, tokenRepo, rdb, dpopVerifier, settingSvc,
 	)
 	h.RegisterRoutes(router)
+	log.WithFields(log.Fields{
+		"stage":   "router.register_api",
+		"took_ms": time.Since(handlerStart).Milliseconds(),
+	}).Info("api routes registered")
 	// 用户管理 SPA 静态资源与入口页（Next.js 导出的 web/app）
-	if p := config.FirstExisting("web/app/index.html", "../web/app/index.html", "../../web/app/index.html"); p != "" {
+	spaStart := time.Now()
+	spaIndex := config.FirstExisting("web/app/index.html", "../web/app/index.html", "../../web/app/index.html")
+	if spaIndex != "" {
 		// 计算 assets 目录位置
 		var base string
-		if strings.HasSuffix(p, "/index.html") {
-			base = p[:len(p)-len("/index.html")]
+		if strings.HasSuffix(spaIndex, "/index.html") {
+			base = spaIndex[:len(spaIndex)-len("/index.html")]
 		} else {
-			base = p
+			base = spaIndex
 		}
 		router.Static("/assets", base+"/assets")
 		if info, err := os.Stat(filepath.Join(base, "_next")); err == nil && info.IsDir() {
@@ -154,9 +184,9 @@ func main() {
 				c.File(filepath.Join(base, "404/index.html"))
 				return
 			}
-			c.File(p)
+			c.File(spaIndex)
 		}
-		router.GET("/", func(c *gin.Context) { c.File(p) })
+		router.GET("/", func(c *gin.Context) { c.File(spaIndex) })
 		router.NoRoute(func(c *gin.Context) {
 			path := c.Request.URL.Path
 			if strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/metrics") || strings.HasPrefix(path, "/healthz") {
@@ -164,14 +194,25 @@ func main() {
 				return
 			}
 			if path == "/" {
-				c.File(p)
+				c.File(spaIndex)
 				return
 			}
 			serveFile(c, path)
 		})
+		log.WithFields(log.Fields{
+			"stage":   "router.spa_mount",
+			"took_ms": time.Since(spaStart).Milliseconds(),
+			"index":   spaIndex,
+		}).Info("spa assets mounted")
+	} else {
+		log.WithFields(log.Fields{
+			"stage":   "router.spa_mount",
+			"took_ms": time.Since(spaStart).Milliseconds(),
+		}).Info("spa assets not found")
 	}
 	// OpenAPI 文档（Stoplight Elements）与静态规范（受配置 docs.enable 控制）
 	if cfg.Docs.Enable {
+		docRouteStart := time.Now()
 		router.GET("/openapi.json", func(c *gin.Context) {
 			if p := config.FirstExisting(cfg.Docs.SpecPath, "docs/swagger.json", "../docs/swagger.json", "../../docs/swagger.json"); p != "" {
 				c.File(p)
@@ -190,9 +231,17 @@ func main() {
 			}
 			c.String(404, "docs page not found")
 		})
+		log.WithFields(log.Fields{
+			"stage":   "router.docs",
+			"took_ms": time.Since(docRouteStart).Milliseconds(),
+		}).Info("docs routes ready")
 	}
 
 	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: router}
+	log.WithFields(log.Fields{
+		"stage":   "startup.ready",
+		"took_ms": time.Since(startup).Milliseconds(),
+	}).Info("startup sequence complete")
 	go func() {
 		log.WithField("addr", cfg.HTTPAddr).Info("starting http server")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -213,5 +262,3 @@ func main() {
 		log.Info("server stopped")
 	}
 }
-
-// 说明：firstExisting 的逻辑已统一移至 config.FirstExisting，避免重复实现。

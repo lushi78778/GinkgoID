@@ -52,19 +52,29 @@ const fallbackAnalytics: AnalyticsData = {
   ],
 };
 
+async function raiseForStatus(res: Response): Promise<Response> {
+  if (res.ok) {
+    return res;
+  }
+  const text = await res.text();
+  const error: any = new Error(text || res.statusText);
+  error.status = res.status;
+  throw error;
+}
+
 export default function AnalyticsPage() {
   const { me } = useAuth();
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
 
   const canAccess = me?.is_admin || (me as any)?.is_dev;
 
   const loadClients = useCallback(async () => {
     try {
-      const res = await fetch("/api/my/clients", { credentials: "include" });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await raiseForStatus(await fetch("/api/my/clients", { credentials: "include" }));
       const data = await res.json();
       if (!Array.isArray(data)) throw new Error("响应格式不正确");
       setClients(data);
@@ -80,10 +90,11 @@ export default function AnalyticsPage() {
     if (!selected) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/my/clients/${encodeURIComponent(selected)}/analytics?period=7d`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await raiseForStatus(
+        await fetch(`/api/my/clients/${encodeURIComponent(selected)}/analytics?period=7d`, {
+          credentials: "include",
+        }),
+      );
       const data = await res.json();
       setAnalytics({
         total_logins: Number(data.total_logins ?? data.login_count ?? 0),
@@ -98,8 +109,16 @@ export default function AnalyticsPage() {
           : fallbackAnalytics.points,
         top_errors: Array.isArray(data.top_errors) ? data.top_errors : fallbackAnalytics.top_errors,
       });
+      setFallbackMessage(null);
     } catch (err: any) {
-      toast.error(err?.message || "无法获取统计，展示示例数据");
+      const status = err?.status ?? 0;
+      if (status === 501) {
+        toast.error("后端尚未提供应用分析接口，展示示例数据");
+        setFallbackMessage("应用分析接口尚未实现，以下为示例数据供参考。");
+      } else {
+        toast.error(err?.message || "无法获取统计，暂以示例数据展示");
+        setFallbackMessage("暂时无法加载应用分析数据，以下内容为示例数据，稍后再试。");
+      }
       setAnalytics(fallbackAnalytics);
     } finally {
       setLoading(false);
@@ -164,6 +183,11 @@ export default function AnalyticsPage() {
         </CardHeader>
         {analytics && (
           <CardContent className="space-y-6">
+            {fallbackMessage && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {fallbackMessage}
+              </div>
+            )}
             <div className="grid gap-4 md:grid-cols-4">
               <MetricCard title="登录总数" value={analytics.total_logins.toLocaleString()} hint={analytics.period} />
               <MetricCard title="新增授权用户" value={analytics.new_users.toLocaleString()} hint={analytics.period} />

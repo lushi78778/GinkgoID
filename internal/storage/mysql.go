@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm/logger"
 
 	"ginkgoid/internal/config"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -34,9 +35,12 @@ func InitMySQL(cfg config.Config) (*gorm.DB, error) {
 	hadUserTable := db.Migrator().HasTable(&User{})
 
 	// 自动迁移数据库结构
+	migrateStart := time.Now()
+	log.Info("starting auto-migrate")
 	if err := autoMigrate(db); err != nil {
 		return nil, err
 	}
+	log.WithField("elapsed", time.Since(migrateStart)).Info("auto-migrate finished")
 
 	// 仅在首次建表时创建初始管理员（可通过配置启用/关闭）
 	if !hadUserTable && cfg.Bootstrap.InitialAdmin.Enable {

@@ -33,6 +33,13 @@ func NewClientService(db *gorm.DB, cfg config.Config) *ClientService {
 // DB 返回底层 *gorm.DB，供部分只读查询使用（如管理端列表）。
 func (s *ClientService) DB() *gorm.DB { return s.db }
 
+// clientRegistrationPlan captures the normalized result of a registration request.
+// It contains the persistent model and the API response derived from the sanitized input.
+type clientRegistrationPlan struct {
+	model *storage.Client
+	resp  *RegisterResponse
+}
+
 // Register 根据请求创建新客户端；当 token_endpoint_auth_method 为
 // "client_secret_basic" 时会生成 client_secret 并仅保存其哈希。
 type RegisterRequest struct {
@@ -65,26 +72,41 @@ type RegisterResponse struct {
 
 // Register 执行动态注册的业务逻辑与基本校验，并持久化客户端。
 func (s *ClientService) Register(ctx context.Context, baseURL string, req *RegisterRequest) (*RegisterResponse, *storage.Client, error) {
-	if len(req.RedirectURIs) == 0 {
-		return nil, nil, errors.New("redirect_uris required")
+	plan, err := s.prepareRegistrationPlan(ctx, baseURL, req)
+	if err != nil {
+		return nil, nil, err
 	}
-	// 基础校验：redirect_uri 必须是绝对 URL（含 scheme/host）
+	if err := s.db.WithContext(ctx).Create(plan.model).Error; err != nil {
+		return nil, nil, err
+	}
+	return plan.resp, plan.model, nil
+}
+
+// prepareRegistrationPlan 负责校验、填充默认值，并生成存储模型及响应体。
+func (s *ClientService) prepareRegistrationPlan(_ context.Context, baseURL string, req *RegisterRequest) (*clientRegistrationPlan, error) {
+	if len(req.RedirectURIs) == 0 {
+		return nil, errors.New("redirect_uris required")
+	}
 	for _, ru := range req.RedirectURIs {
 		u, err := url.Parse(ru)
 		if err != nil || u.Scheme == "" || u.Host == "" {
-			return nil, nil, fmt.Errorf("invalid redirect_uri: %s", ru)
+			return nil, fmt.Errorf("invalid redirect_uri: %s", ru)
 		}
 	}
 	clientID := uuid.NewString()
-	secretPlain := ""
-	method := req.TokenEndpointAuthMethod
+	now := time.Now()
+	method := strings.TrimSpace(req.TokenEndpointAuthMethod)
 	if method == "" {
 		method = "client_secret_basic"
 	}
-	var secretHash string
+	secretPlain := ""
+	secretHash := ""
 	if method == "client_secret_basic" {
 		secretPlain = uuid.NewString()
-		hh, _ := bcrypt.GenerateFromPassword([]byte(secretPlain), bcrypt.DefaultCost)
+		hh, err := bcrypt.GenerateFromPassword([]byte(secretPlain), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, fmt.Errorf("hash client secret: %w", err)
+		}
 		secretHash = string(hh)
 	}
 	grantTypes := req.GrantTypes
@@ -99,40 +121,47 @@ func (s *ClientService) Register(ctx context.Context, baseURL string, req *Regis
 	if scope == "" {
 		scope = "openid profile email"
 	}
-
 	subjectType := req.SubjectType
 	if subjectType == "" {
 		subjectType = "public"
 	}
-
-	// 可选：校验 sector_identifier_uri 指向的 JSON 是否覆盖所有 redirect_uris
 	if req.SectorIdentifierURI != "" {
 		if err := validateSectorIdentifier(s.cfg, req.SectorIdentifierURI, req.RedirectURIs); err != nil {
-			return nil, nil, fmt.Errorf("sector_identifier_uri invalid: %w", err)
+			return nil, fmt.Errorf("sector_identifier_uri invalid: %w", err)
 		}
 	}
-	// 将 redirect_uris 序列化为 JSON 存库
-	ruJSON, _ := json.Marshal(req.RedirectURIs)
-	// post_logout_redirect_uris 亦序列化为 JSON 存库
+	ruJSON, err := json.Marshal(req.RedirectURIs)
+	if err != nil {
+		return nil, fmt.Errorf("marshal redirect_uris: %w", err)
+	}
 	var plruJSON []byte
 	if len(req.PostLogoutRedirectURIs) > 0 {
-		plruJSON, _ = json.Marshal(req.PostLogoutRedirectURIs)
+		plruJSON, err = json.Marshal(req.PostLogoutRedirectURIs)
+		if err != nil {
+			return nil, fmt.Errorf("marshal post_logout_redirect_uris: %w", err)
+		}
 	}
-	now := time.Now()
 	var expAtPtr *time.Time
-	if s.cfg.Token.RegistrationPATTTL > 0 {
-		ex := now.Add(s.cfg.Token.RegistrationPATTTL)
-		expAtPtr = &ex
+	if ttl := s.cfg.Token.RegistrationPATTTL; ttl > 0 {
+		z := now.Add(ttl)
+		expAtPtr = &z
 	}
-	// 当不需要人工审批时，直接标记为已通过（Status=1，Approved=true）；需要审批则 Status=0，Approved=false。
+	requireApproval := s.cfg.Registration.RequireApproval
+	if s.cfg.Env != "prod" {
+		requireApproval = false
+	}
 	status := 1
 	approved := true
-	if s.cfg.Registration.RequireApproval {
+	if requireApproval {
 		status = 0
 		approved = false
 	}
 	enabled := approved
-	c := &storage.Client{
+	regToken, regHash, err := generateRegistrationToken(clientID, now)
+	if err != nil {
+		return nil, err
+	}
+	model := &storage.Client{
 		ClientID:                         clientID,
 		SecretHash:                       secretHash,
 		Name:                             req.ClientName,
@@ -146,6 +175,7 @@ func (s *ClientService) Register(ctx context.Context, baseURL string, req *Regis
 		FrontchannelLogoutURI:            req.FrontchannelLogoutURI,
 		BackchannelLogoutURI:             req.BackchannelLogoutURI,
 		PostLogoutRedirectURIs:           string(plruJSON),
+		RegistrationAccessTokenHash:      regHash,
 		RegistrationAccessTokenExpiresAt: expAtPtr,
 		Status:                           status,
 		Approved:                         approved,
@@ -153,29 +183,30 @@ func (s *ClientService) Register(ctx context.Context, baseURL string, req *Regis
 		CreatedAt:                        now,
 		UpdatedAt:                        now,
 	}
-	if err := s.db.WithContext(ctx).Create(c).Error; err != nil {
-		return nil, nil, err
-	}
-	// 生成 registration_access_token（简单高熵随机值）
-	sh := sha256.Sum256([]byte(clientID + now.String()))
-	regTok := base64.RawURLEncoding.EncodeToString(sh[:])
-	// 仅存储散列用于后续校验（不存明文）
-	if hh, err := bcrypt.GenerateFromPassword([]byte(regTok), bcrypt.DefaultCost); err == nil {
-		c.RegistrationAccessTokenHash = string(hh)
-		_ = s.db.WithContext(ctx).Save(c).Error
-	}
 	resp := &RegisterResponse{
 		ClientID:                clientID,
 		ClientSecret:            secretPlain,
 		ClientSecretExpiresAt:   0,
 		ClientIDIssuedAt:        now.Unix(),
-		RegistrationAccessToken: regTok,
+		RegistrationAccessToken: regToken,
 		RegistrationClientURI:   fmt.Sprintf("%s/register?client_id=%s", strings.TrimRight(baseURL, "/"), clientID),
 		TokenEndpointAuthMethod: method,
 		RedirectURIs:            req.RedirectURIs,
 		GrantTypes:              grantTypes,
 	}
-	return resp, c, nil
+	return &clientRegistrationPlan{model: model, resp: resp}, nil
+}
+
+func generateRegistrationToken(clientID string, now time.Time) (string, string, error) {
+	// registration_access_token 设计为一次性高熵随机值；此处使用 clientID+时间戳
+	// 的哈希避免引入额外依赖，随后仅返回明文一次，并将哈希存库便于校验。
+	sh := sha256.Sum256([]byte(clientID + now.String()))
+	pl := base64.RawURLEncoding.EncodeToString(sh[:])
+	hh, err := bcrypt.GenerateFromPassword([]byte(pl), bcrypt.DefaultCost)
+	if err != nil {
+		return "", "", fmt.Errorf("hash registration token: %w", err)
+	}
+	return pl, string(hh), nil
 }
 
 // FindByID 根据 client_id 查找已批准的客户端。

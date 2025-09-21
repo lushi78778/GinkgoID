@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 
@@ -43,33 +42,49 @@ const fallbackSessions: SessionItem[] = [
     created_at: Math.floor(Date.now() / 1000) - 7200,
     last_seen_at: Math.floor(Date.now() / 1000),
     ip: "203.0.113.42",
-    user_agent: "Mac · Chrome 126",
+    user_agent: "Chrome 126 · macOS",
     location: "Shanghai, CN",
     current: true,
   },
   {
-    id: "old-1",
+    id: "legacy",
     created_at: Math.floor(Date.now() / 1000) - 86400,
-    last_seen_at: Math.floor(Date.now() / 1000) - 3600,
+    last_seen_at: Math.floor(Date.now() / 1000) - 5400,
     ip: "198.51.100.10",
-    user_agent: "Windows · Edge",
+    user_agent: "Edge 125 · Windows",
     location: "Beijing, CN",
   },
 ];
+
+type FallbackNotice = {
+  message: string;
+  reason: "unimplemented" | "error";
+};
+
+async function raiseForStatus(res: Response): Promise<Response> {
+  if (res.ok) {
+    return res;
+  }
+  const text = await res.text();
+  const error: any = new Error(text || res.statusText);
+  error.status = res.status;
+  throw error;
+}
 
 export default function SecurityCenter() {
   const [mfa, setMfa] = useState<MfaState | null>(null);
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loadingMfa, setLoadingMfa] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  const [mfaNotice, setMfaNotice] = useState<FallbackNotice | null>(null);
+  const [sessionsNotice, setSessionsNotice] = useState<FallbackNotice | null>(null);
   const [verifyCode, setVerifyCode] = useState("");
   const [showRecovery, setShowRecovery] = useState(false);
 
   const loadMfa = useCallback(async () => {
     setLoadingMfa(true);
     try {
-      const res = await fetch("/api/security/mfa", { credentials: "include" });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await raiseForStatus(await fetch("/api/security/mfa", { credentials: "include" }));
       const data = await res.json();
       setMfa({
         enabled: Boolean(data.enabled),
@@ -80,8 +95,16 @@ export default function SecurityCenter() {
         last_used_at: data.last_used_at,
         enrolled_at: data.enrolled_at,
       });
+      setMfaNotice(null);
     } catch (err: any) {
-      toast.error(err?.message || "无法获取 MFA 状态，显示示例数据");
+      const status = err?.status ?? 0;
+      if (status === 501) {
+        toast.error("后端尚未启用 MFA 接口，以下展示示例数据");
+        setMfaNotice({ message: "MFA 接口暂未实现，当前为示例数据。", reason: "unimplemented" });
+      } else {
+        toast.error(err?.message || "无法获取 MFA 状态，暂以示例填充");
+        setMfaNotice({ message: "暂时无法获取 MFA 状态，以下内容为示例数据，稍后可重试。", reason: "error" });
+      }
       setMfa(fallbackMfa);
     } finally {
       setLoadingMfa(false);
@@ -91,22 +114,29 @@ export default function SecurityCenter() {
   const loadSessions = useCallback(async () => {
     setLoadingSessions(true);
     try {
-      const res = await fetch("/api/security/sessions", { credentials: "include" });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await raiseForStatus(await fetch("/api/security/sessions", { credentials: "include" }));
       const data = await res.json();
       if (!Array.isArray(data)) throw new Error("响应格式不正确");
       const mapped: SessionItem[] = data.map((item: any) => ({
         id: String(item.id ?? item.session_id ?? crypto.randomUUID()),
         created_at: Number(item.created_at ?? item.issued_at ?? Date.now() / 1000),
-        last_seen_at: Number(item.last_seen_at ?? item.last_active_at ?? Date.now() / 1000),
+        last_seen_at: Number(item.last_seen_at ?? item.last_active_at ?? item.created_at ?? Date.now() / 1000),
         ip: item.ip,
         user_agent: item.user_agent ?? item.ua,
         location: item.location,
         current: Boolean(item.current ?? item.is_current),
       }));
       setSessions(mapped);
+      setSessionsNotice(null);
     } catch (err: any) {
-      toast.error(err?.message || "无法加载会话，显示示例数据");
+      const status = err?.status ?? 0;
+      if (status === 501) {
+        toast.error("后端尚未提供会话列表接口，展示示例数据");
+        setSessionsNotice({ message: "会话列表接口尚未实现，以下为示例数据。", reason: "unimplemented" });
+      } else {
+        toast.error(err?.message || "无法加载会话数据，暂以示例填充");
+        setSessionsNotice({ message: "暂时无法获取会话数据，以下列表为示例，稍后再试。", reason: "error" });
+      }
       setSessions(fallbackSessions);
     } finally {
       setLoadingSessions(false);
@@ -125,8 +155,7 @@ export default function SecurityCenter() {
   const startSetup = async () => {
     setLoadingMfa(true);
     try {
-      const res = await fetch("/api/security/mfa/setup", { method: "POST", credentials: "include" });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await raiseForStatus(await fetch("/api/security/mfa/setup", { method: "POST", credentials: "include" }));
       const data = await res.json();
       setMfa({
         enabled: false,
@@ -136,9 +165,11 @@ export default function SecurityCenter() {
         recovery_codes: data.recovery_codes,
       });
       toast.success("已生成密钥，请使用 TOTP 应用扫描");
+      setMfaNotice(null);
     } catch (err: any) {
-      toast.error(err?.message || "无法生成 TOTP 密钥，已使用示例数据");
+      toast.error(err?.message || "无法生成 TOTP 密钥，暂以示例填充");
       setMfa(fallbackMfa);
+      setMfaNotice({ message: "暂时无法生成绑定信息，以下为示例数据。", reason: "error" });
     } finally {
       setLoadingMfa(false);
     }
@@ -151,13 +182,14 @@ export default function SecurityCenter() {
     }
     setLoadingMfa(true);
     try {
-      const res = await fetch("/api/security/mfa/activate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ code: verifyCode }),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      await raiseForStatus(
+        await fetch("/api/security/mfa/activate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ code: verifyCode }),
+        }),
+      );
       toast.success("已开启多因素认证");
       setVerifyCode("");
       await loadMfa();
@@ -172,8 +204,7 @@ export default function SecurityCenter() {
     if (!window.confirm("确定要关闭多因素认证吗？")) return;
     setLoadingMfa(true);
     try {
-      const res = await fetch("/api/security/mfa", { method: "DELETE", credentials: "include" });
-      if (!res.ok) throw new Error(await res.text());
+      await raiseForStatus(await fetch("/api/security/mfa", { method: "DELETE", credentials: "include" }));
       toast.success("已关闭 MFA");
       await loadMfa();
     } catch (err: any) {
@@ -186,27 +217,27 @@ export default function SecurityCenter() {
   const revokeSession = async (id: string) => {
     if (!window.confirm("确定要退出该会话吗？")) return;
     try {
-      const res = await fetch(`/api/security/sessions/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(await res.text());
+      await raiseForStatus(
+        await fetch(`/api/security/sessions/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          credentials: "include",
+        }),
+      );
       toast.success("已注销指定会话");
       await loadSessions();
     } catch (err: any) {
-      toast.error(err?.message || "无法注销会话 (可能待后端实现)");
+      toast.error(err?.message || "无法注销会话 (可能尚未实现接口)");
     }
   };
 
   const revokeAll = async () => {
     if (!window.confirm("确定要退出除当前设备外的所有会话？")) return;
     try {
-      const res = await fetch("/api/security/sessions", { method: "DELETE", credentials: "include" });
-      if (!res.ok) throw new Error(await res.text());
+      await raiseForStatus(await fetch("/api/security/sessions", { method: "DELETE", credentials: "include" }));
       toast.success("已注销其他会话");
       await loadSessions();
     } catch (err: any) {
-      toast.error(err?.message || "操作失败，功能可能待后端实现");
+      toast.error(err?.message || "操作失败，稍后再试");
     }
   };
 
@@ -217,6 +248,9 @@ export default function SecurityCenter() {
       .catch(() => toast.error("复制失败"));
   };
 
+  const mfaReadOnly = Boolean(mfaNotice && mfaNotice.reason === "unimplemented");
+  const sessionActionsDisabled = Boolean(sessionsNotice);
+
   return (
     <div className="container py-10 space-y-6">
       <Card>
@@ -225,6 +259,11 @@ export default function SecurityCenter() {
           <CardDescription>为账户绑定基于时间的一次性密码 (TOTP)，推荐使用 Google Authenticator 或 1Password</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 md:grid-cols-2">
+          {mfaNotice && (
+            <div className="md:col-span-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {mfaNotice.message}
+            </div>
+          )}
           <div className="space-y-4">
             <div className="rounded-xl border border-border/60 bg-background/70 p-4">
               <div className="flex items-center gap-2 text-sm">
@@ -275,8 +314,10 @@ export default function SecurityCenter() {
                 </div>
                 {mfa?.secret && (
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => copyToClipboard(mfa.secret!, "密钥")}>复制密钥</Button>
-                    <Button variant="outline" size="sm" onClick={() => copyToClipboard(mfa.otpauth_url || "", "otpauth url")}>
+                    <Button variant="outline" size="sm" onClick={() => copyToClipboard(mfa.secret!, "密钥")}>
+                      复制密钥
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => copyToClipboard(mfa.otpauth_url || "", "otpauth URL")}>
                       复制 otpauth URL
                     </Button>
                   </div>
@@ -290,7 +331,7 @@ export default function SecurityCenter() {
                       placeholder="123456"
                       className="max-w-[160px] text-center text-lg tracking-[0.4em]"
                     />
-                    <Button onClick={confirmSetup} disabled={loadingMfa}>
+                    <Button onClick={confirmSetup} disabled={loadingMfa || mfaReadOnly}>
                       验证并开启
                     </Button>
                   </div>
@@ -299,7 +340,7 @@ export default function SecurityCenter() {
             )}
 
             {mfa?.enabled && (
-              <Button variant="destructive" onClick={disableMfa} disabled={loadingMfa}>
+              <Button variant="destructive" onClick={disableMfa} disabled={loadingMfa || mfaReadOnly}>
                 关闭多因素认证
               </Button>
             )}
@@ -351,12 +392,17 @@ export default function SecurityCenter() {
             <Button variant="outline" size="sm" onClick={loadSessions} disabled={loadingSessions}>
               {loadingSessions ? "加载中..." : "刷新"}
             </Button>
-            <Button variant="destructive" size="sm" onClick={revokeAll}>
+            <Button variant="destructive" size="sm" onClick={revokeAll} disabled={sessionActionsDisabled}>
               退出其他会话
             </Button>
           </div>
         </CardHeader>
         <CardContent>
+          {sessionsNotice && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {sessionsNotice.message}
+            </div>
+          )}
           <div className="rounded-xl border border-border/60 bg-background/70">
             <Table>
               <TableHeader>
@@ -389,7 +435,7 @@ export default function SecurityCenter() {
                     </TableCell>
                     <TableCell>
                       {!session.current && (
-                        <Button variant="outline" size="sm" onClick={() => revokeSession(session.id)}>
+                        <Button variant="outline" size="sm" onClick={() => revokeSession(session.id)} disabled={sessionActionsDisabled}>
                           退出
                         </Button>
                       )}

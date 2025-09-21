@@ -3,38 +3,39 @@ package storage
 import (
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
 // 本文件定义平台使用的所有 GORM 模型，集中管理数据结构。
 
 type User struct {
-	ID            uint64 `gorm:"primaryKey;autoIncrement"`
-	Username      string `gorm:"size:190;uniqueIndex"`
-	Password      string `gorm:"size:255"` // 已哈希的口令
-	Email         string `gorm:"size:190;index"`
-	EmailVerified bool   `gorm:"index"`
-	Name          string `gorm:"size:190"`
-	IsAdmin       bool   `gorm:"index"`
-	IsDev         bool   `gorm:"index"`
-	MarketingOptIn bool      `gorm:"index"`
-	PendingEmail    string    `gorm:"size:190"`
-	MFAEnabled      bool      `gorm:"index"`
-	MFASecret       string    `gorm:"size:128"`
-	MFARecoveryCodes string   `gorm:"type:text"`
-	MFAPendingSecret string   `gorm:"size:128"`
+	ID                      uint64 `gorm:"primaryKey;autoIncrement"`
+	Username                string `gorm:"size:190;uniqueIndex"`
+	Password                string `gorm:"size:255"` // 已哈希的口令
+	Email                   string `gorm:"size:190;index"`
+	EmailVerified           bool   `gorm:"index"`
+	Name                    string `gorm:"size:190"`
+	IsAdmin                 bool   `gorm:"index"`
+	IsDev                   bool   `gorm:"index"`
+	MarketingOptIn          bool   `gorm:"index"`
+	PendingEmail            string `gorm:"size:190"`
+	MFAEnabled              bool   `gorm:"index"`
+	MFASecret               string `gorm:"size:128"`
+	MFARecoveryCodes        string `gorm:"type:text"`
+	MFAPendingSecret        string `gorm:"size:128"`
 	MFAPendingRecoveryCodes string `gorm:"type:text"`
-	MFAEnrolledAt    *time.Time
-	MFALastUsedAt    *time.Time
-	DeletionRequestedAt *time.Time
-	DeletionReason       string `gorm:"size:255"`
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	MFAEnrolledAt           *time.Time
+	MFALastUsedAt           *time.Time
+	DeletionRequestedAt     *time.Time
+	DeletionReason          string `gorm:"size:255"`
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
 }
 
 type Setting struct {
-	Key       string    `gorm:"primaryKey;size:190"`
-	Value     string    `gorm:"type:longtext"`
+	Key       string `gorm:"primaryKey;size:190"`
+	Value     string `gorm:"type:longtext"`
 	UpdatedAt time.Time
 }
 
@@ -60,9 +61,9 @@ type Client struct {
 	Status       int        `gorm:"index;default:0"` // 审批状态：0=待审批，1=已通过，2=已拒绝
 	ApprovedBy   uint64     `gorm:"index"`           // 审批人用户ID
 	ApprovedAt   *time.Time // 审批时间（待审为 NULL）
-	RejectReason string     `gorm:"size:255"` // 拒绝原因
-	Approved     bool       `gorm:"index"`    // 兼容旧逻辑，true=已通过
-	Enabled      bool       `gorm:"index"`    // 是否允许使用（审批通过后可单独禁用）
+	RejectReason string     `gorm:"size:255"`           // 拒绝原因
+	Approved     bool       `gorm:"index"`              // 兼容旧逻辑，true=已通过
+	Enabled      bool       `gorm:"index;default:true"` // 是否允许使用（审批通过后可单独禁用）
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
@@ -125,13 +126,29 @@ type Consent struct {
 
 // autoMigrate 执行数据库自动迁移。
 func autoMigrate(db *gorm.DB) error {
+	start := time.Now()
+	log.WithField("module", "storage").Debug("auto-migrate executing gorm.AutoMigrate")
 	if err := db.AutoMigrate(&User{}, &Client{}, &JWKKey{}, &TokenRecord{}, &LogRecord{}, &Consent{}, &Setting{}); err != nil {
 		return err
 	}
 	// 保障字段可空（部分旧库可能保留 NOT NULL 约束）
 	// MySQL: 修改 registration_access_token_expires_at 与 approved_at 允许为 NULL
 	// 忽略错误以避免不同方言差异导致启动失败
-	_ = db.Exec("ALTER TABLE clients MODIFY COLUMN registration_access_token_expires_at DATETIME NULL").Error
-	_ = db.Exec("ALTER TABLE clients MODIFY COLUMN approved_at DATETIME NULL").Error
+	for _, stmt := range []struct {
+		comment string
+		query   string
+	}{
+		{"alter_registration_access_token_expires_at", "ALTER TABLE clients MODIFY COLUMN registration_access_token_expires_at DATETIME NULL"},
+		{"alter_approved_at", "ALTER TABLE clients MODIFY COLUMN approved_at DATETIME NULL"},
+		{"backfill_enabled_flag", "UPDATE clients SET enabled = approved WHERE enabled = 0 AND approved = 1 AND updated_at = created_at"},
+	} {
+		stepStart := time.Now()
+		if err := db.Exec(stmt.query).Error; err != nil {
+			log.WithFields(log.Fields{"module": "storage", "step": stmt.comment, "error": err}).Warn("auto-migrate step failed")
+		} else {
+			log.WithFields(log.Fields{"module": "storage", "step": stmt.comment, "elapsed": time.Since(stepStart)}).Debug("auto-migrate step ok")
+		}
+	}
+	log.WithFields(log.Fields{"module": "storage", "elapsed": time.Since(start)}).Info("auto-migrate completed")
 	return nil
 }

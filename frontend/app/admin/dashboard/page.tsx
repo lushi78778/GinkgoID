@@ -55,20 +55,30 @@ const fallbackClients: TopClient[] = [
   { client_id: "partner-api", name: "合作伙伴 API", weekly_logins: 320, approval_status: "pending" },
 ];
 
+async function raiseForStatus(res: Response): Promise<Response> {
+  if (res.ok) {
+    return res;
+  }
+  const text = await res.text();
+  const error: any = new Error(text || res.statusText);
+  error.status = res.status;
+  throw error;
+}
+
 export default function AdminDashboard() {
   const { me } = useAuth();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [trend, setTrend] = useState<TrendPoint[]>([]);
   const [topClients, setTopClients] = useState<TopClient[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
 
   const isAdmin = Boolean(me?.is_admin);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/metrics", { credentials: "include" });
-      if (!res.ok) throw new Error(await res.text());
+      const res = await raiseForStatus(await fetch("/api/admin/metrics", { credentials: "include" }));
       const data = await res.json();
       setMetrics({
         total_users: Number(data.total_users ?? 0),
@@ -87,8 +97,16 @@ export default function AdminDashboard() {
           : fallbackTrend,
       );
       setTopClients(Array.isArray(data.top_clients) ? data.top_clients : fallbackClients);
+      setFallbackMessage(null);
     } catch (err: any) {
-      toast.error(err?.message || "无法获取指标，展示示例数据");
+      const status = err?.status ?? 0;
+      if (status === 501) {
+        toast.error("后端尚未提供仪表盘指标接口，展示示例数据");
+        setFallbackMessage("仪表盘指标接口尚未实现，以下为示例数据。");
+      } else {
+        toast.error(err?.message || "无法获取指标，暂以示例数据展示");
+        setFallbackMessage("暂时无法加载仪表盘数据，以下为示例数据，稍后再试。");
+      }
       setMetrics(fallbackMetrics);
       setTrend(fallbackTrend);
       setTopClients(fallbackClients);
@@ -137,6 +155,11 @@ export default function AdminDashboard() {
         </CardHeader>
         {metrics && (
           <CardContent className="space-y-6">
+            {fallbackMessage && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {fallbackMessage}
+              </div>
+            )}
             <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
               <Metric title="用户总数" value={metrics.total_users.toLocaleString()} />
               <Metric title="7 日活跃" value={metrics.active_users_7d.toLocaleString()} />

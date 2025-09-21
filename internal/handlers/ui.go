@@ -3,12 +3,13 @@ package handlers
 import (
 	"net/http"
 	"net/url"
-
 	"strings"
+	"time"
 
 	"ginkgoid/internal/services"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pquerna/otp/totp"
 )
 
 // @Summary      会话探测 Iframe（简化）
@@ -94,7 +95,56 @@ func (h *Handler) loginSubmit(c *gin.Context) {
 		c.HTML(http.StatusUnauthorized, "login.html", gin.H{"error": "用户名或密码错误", "params": c.Request.PostForm, "csrf": h.issueCSRF(c)})
 		return
 	}
-	sess, err := h.sessionSvc.New(c, u.ID, "urn:op:auth:pwd", []string{"pwd"})
+	acr := "urn:op:auth:pwd"
+	amr := []string{"pwd"}
+	mfaRequired := u.MFAEnabled && u.MFASecret != ""
+	if mfaRequired {
+		otp := strings.TrimSpace(c.PostForm("otp"))
+		if otp == "" {
+			ip := c.ClientIP()
+			rid := c.GetString("request_id")
+			ua := c.Request.UserAgent()
+			_ = h.logSvc.Write(c, "WARN", "USER_LOGIN_FAILED", h.userSvc.IDPtr(u.ID), nil, "mfa required", ip, services.LogWriteOpts{
+				RequestID: rid,
+				SessionID: readSessionCookie(c, h.cfg.Session.CookieName),
+				Method:    c.Request.Method,
+				Path:      c.Request.URL.Path,
+				Status:    http.StatusUnauthorized,
+				UserAgent: ua,
+				Outcome:   "failure",
+				ErrorCode: "mfa_required",
+				Extra:     map[string]any{"username": username},
+			})
+			c.HTML(http.StatusUnauthorized, "login.html", gin.H{"error": "需要输入 MFA 动态码", "params": c.Request.PostForm, "csrf": h.issueCSRF(c)})
+			return
+		}
+		if !totp.Validate(otp, u.MFASecret) {
+			ip := c.ClientIP()
+			rid := c.GetString("request_id")
+			ua := c.Request.UserAgent()
+			_ = h.logSvc.Write(c, "WARN", "USER_LOGIN_FAILED", h.userSvc.IDPtr(u.ID), nil, "mfa invalid", ip, services.LogWriteOpts{
+				RequestID: rid,
+				SessionID: readSessionCookie(c, h.cfg.Session.CookieName),
+				Method:    c.Request.Method,
+				Path:      c.Request.URL.Path,
+				Status:    http.StatusUnauthorized,
+				UserAgent: ua,
+				Outcome:   "failure",
+				ErrorCode: "mfa_invalid",
+				Extra:     map[string]any{"username": username},
+			})
+			c.HTML(http.StatusUnauthorized, "login.html", gin.H{"error": "MFA 动态码无效", "params": c.Request.PostForm, "csrf": h.issueCSRF(c)})
+			return
+		}
+		acr = "urn:op:auth:pwd+mfa"
+		amr = append(amr, "otp")
+		now := time.Now()
+		u.MFALastUsedAt = &now
+		_ = h.userSvc.Save(c, u)
+	}
+	ip := c.ClientIP()
+	ua := c.Request.UserAgent()
+	sess, err := h.sessionSvc.New(c, u.ID, acr, amr, ip, ua)
 	if err != nil {
 		c.String(500, "session error")
 		return
@@ -112,9 +162,9 @@ func (h *Handler) loginSubmit(c *gin.Context) {
 		cookie.Domain = h.cfg.Session.CookieDomain
 	}
 	http.SetCookie(c.Writer, cookie)
-	ip := c.ClientIP()
+	ip = c.ClientIP()
 	rid := c.GetString("request_id")
-	ua := c.Request.UserAgent()
+	ua = c.Request.UserAgent()
 	_ = h.logSvc.Write(c, "INFO", "USER_LOGIN", h.userSvc.IDPtr(u.ID), nil, "login success", ip, services.LogWriteOpts{
 		RequestID: rid,
 		SessionID: sess.SID,
@@ -123,7 +173,7 @@ func (h *Handler) loginSubmit(c *gin.Context) {
 		Status:    http.StatusFound,
 		UserAgent: ua,
 		Outcome:   "success",
-		Extra:     map[string]any{"username": u.Username},
+		Extra:     map[string]any{"username": u.Username, "mfa_used": mfaRequired},
 	})
 	hasClient := orig.Get("client_id") != "" && orig.Get("redirect_uri") != ""
 	if hasClient {

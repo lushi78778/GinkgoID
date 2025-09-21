@@ -74,25 +74,34 @@ func generateRecoveryCodes(n int) ([]string, error) {
 
 // --- Me ----------------------------------------------------------------------
 
+// @Summary      请求发送邮箱验证
+// @Description  当前未配置邮件发送服务时会返回 501
+// @Tags         user-api
+// @Produce      json
+// @Failure      401 {object} map[string]string
+// @Failure      501 {object} map[string]string
+// @Router       /api/me/email/verify [post]
 func (h *Handler) apiMeVerifyEmail(c *gin.Context) {
-	u, err := h.currentUserRecord(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-	u.EmailVerified = true
-	u.PendingEmail = ""
-	if err := h.userSvc.Save(c, u); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "db"})
-		return
-	}
-	c.Status(http.StatusNoContent)
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error":   "email_verification_disabled",
+		"message": "系统未配置邮箱发送服务，请联系管理员手动完成验证",
+	})
 }
 
 type mePreferenceReq struct {
 	MarketingOptIn *bool `json:"marketing_opt_in"`
 }
 
+// @Summary      更新用户偏好
+// @Description  修改当前登录用户的营销订阅等偏好设置
+// @Tags         user-api
+// @Accept       json
+// @Produce      json
+// @Param        body  body      mePreferenceReq  true  "偏好设置"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Router       /api/me/preferences [put]
 func (h *Handler) apiMeUpdatePreferences(c *gin.Context) {
 	u, err := h.currentUserRecord(c)
 	if err != nil {
@@ -116,6 +125,18 @@ func (h *Handler) apiMeUpdatePreferences(c *gin.Context) {
 
 // --- Logs --------------------------------------------------------------------
 
+// @Summary      用户安全日志
+// @Description  查询当前登录用户的安全事件日志，可按级别、关键词和时间范围过滤
+// @Tags         user-api
+// @Produce      json
+// @Param        level query string false "日志级别"
+// @Param        search query string false "关键字过滤"
+// @Param        from  query string false "起始时间(YYYY-MM-DD 或 Unix 秒)"
+// @Param        to    query string false "结束时间(YYYY-MM-DD 或 Unix 秒)"
+// @Param        limit query int    false "返回数量上限"
+// @Success      200 {array} map[string]interface{}
+// @Failure      401 {object} map[string]string
+// @Router       /api/self/logs [get]
 func (h *Handler) apiSelfLogs(c *gin.Context) {
 	u, err := h.currentUser(c)
 	if err != nil {
@@ -195,6 +216,13 @@ type mfaStateResponse struct {
 	EnrolledAt    *int64   `json:"enrolled_at,omitempty"`
 }
 
+// @Summary      获取 MFA 状态
+// @Description  读取当前用户的多因素认证配置，包括密钥、恢复码等
+// @Tags         user-security
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      401 {object} map[string]string
+// @Router       /api/security/mfa [get]
 func (h *Handler) apiSecurityGetMFA(c *gin.Context) {
 	u, err := h.currentUserRecord(c)
 	if err != nil {
@@ -224,6 +252,13 @@ func (h *Handler) apiSecurityGetMFA(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// @Summary      生成 MFA 绑定信息
+// @Description  为当前用户生成新的 TOTP 秘钥和恢复码用于绑定 MFA
+// @Tags         user-security
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      401 {object} map[string]string
+// @Router       /api/security/mfa/setup [post]
 func (h *Handler) apiSecuritySetupMFA(c *gin.Context) {
 	u, err := h.currentUserRecord(c)
 	if err != nil {
@@ -272,6 +307,16 @@ type activateMFAReq struct {
 	Code string `json:"code"`
 }
 
+// @Summary      激活 MFA
+// @Description  校验一次性验证码并启用当前用户的 MFA
+// @Tags         user-security
+// @Accept       json
+// @Produce      json
+// @Param        body body map[string]string true "验证码参数"
+// @Success      204 {string} string "No Content"
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Router       /api/security/mfa/activate [post]
 func (h *Handler) apiSecurityActivateMFA(c *gin.Context) {
 	u, err := h.currentUserRecord(c)
 	if err != nil {
@@ -306,6 +351,13 @@ func (h *Handler) apiSecurityActivateMFA(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// @Summary      关闭 MFA
+// @Description  禁用当前用户的多因素认证配置
+// @Tags         user-security
+// @Produce      json
+// @Success      204 {string} string "No Content"
+// @Failure      401 {object} map[string]string
+// @Router       /api/security/mfa [delete]
 func (h *Handler) apiSecurityDisableMFA(c *gin.Context) {
 	u, err := h.currentUserRecord(c)
 	if err != nil {
@@ -365,6 +417,13 @@ func (h *Handler) buildOTPQRCode(otpauthURL string) string {
 
 // --- Sessions ----------------------------------------------------------------
 
+// @Summary      会话列表
+// @Description  列出当前用户的所有活跃会话
+// @Tags         user-security
+// @Produce      json
+// @Success      200 {array} map[string]interface{}
+// @Failure      401 {object} map[string]string
+// @Router       /api/security/sessions [get]
 func (h *Handler) apiSecurityListSessions(c *gin.Context) {
 	u, err := h.currentUserRecord(c)
 	if err != nil {
@@ -380,12 +439,16 @@ func (h *Handler) apiSecurityListSessions(c *gin.Context) {
 	resp := make([]gin.H, 0, len(sessions))
 	for _, sess := range sessions {
 		isCurrent := sess.SID == sidCookie
+		lastSeen := sess.LastSeen
+		if lastSeen.IsZero() {
+			lastSeen = sess.AuthTime
+		}
 		resp = append(resp, gin.H{
 			"id":           sess.SID,
 			"created_at":   sess.AuthTime.Unix(),
-			"last_seen_at": sess.AuthTime.Unix(),
-			"user_agent":   "",
-			"ip":           "",
+			"last_seen_at": lastSeen.Unix(),
+			"user_agent":   sess.UserAgent,
+			"ip":           sess.IP,
 			"location":     "",
 			"current":      isCurrent,
 		})
@@ -393,6 +456,13 @@ func (h *Handler) apiSecurityListSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// @Summary      注销其他会话
+// @Description  注销除当前会话外的全部登录会话
+// @Tags         user-security
+// @Produce      json
+// @Success      204 {string} string "No Content"
+// @Failure      401 {object} map[string]string
+// @Router       /api/security/sessions [delete]
 func (h *Handler) apiSecurityDeleteSessions(c *gin.Context) {
 	u, err := h.currentUser(c)
 	if err != nil {
@@ -407,6 +477,15 @@ func (h *Handler) apiSecurityDeleteSessions(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// @Summary      注销指定会话
+// @Description  注销当前用户的指定会话 ID
+// @Tags         user-security
+// @Produce      json
+// @Param        id path string true "会话 ID"
+// @Success      204 {string} string "No Content"
+// @Failure      401 {object} map[string]string
+// @Failure      404 {object} map[string]string
+// @Router       /api/security/sessions/{id} [delete]
 func (h *Handler) apiSecurityDeleteSession(c *gin.Context) {
 	u, err := h.currentUser(c)
 	if err != nil {
@@ -429,8 +508,16 @@ func (h *Handler) apiSecurityDeleteSession(c *gin.Context) {
 
 type privacyExportResponse struct {
 	DownloadURL string `json:"download_url"`
+	Message     string `json:"message,omitempty"`
 }
 
+// @Summary      导出个人数据
+// @Description  触发当前用户的数据导出请求，生成临时下载链接
+// @Tags         user-privacy
+// @Produce      json
+// @Success      200 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Router       /api/privacy/export [post]
 func (h *Handler) apiPrivacyExport(c *gin.Context) {
 	u, err := h.currentUserRecord(c)
 	if err != nil {
@@ -454,9 +541,20 @@ func (h *Handler) apiPrivacyExport(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "store_failed"})
 		return
 	}
-	c.JSON(http.StatusOK, privacyExportResponse{DownloadURL: fmt.Sprintf("/api/privacy/export/%s", token)})
+	c.JSON(http.StatusOK, privacyExportResponse{
+		DownloadURL: fmt.Sprintf("/api/privacy/export/%s", token),
+		Message:     "导出任务已生成，下载链接 15 分钟内有效。",
+	})
 }
 
+// @Summary      下载导出结果
+// @Description  通过导出令牌下载个人数据归档
+// @Tags         user-privacy
+// @Produce      application/zip
+// @Param        token path string true "导出令牌"
+// @Success      200 {file} file
+// @Failure      404 {object} map[string]string
+// @Router       /api/privacy/export/{token} [get]
 func (h *Handler) apiPrivacyDownload(c *gin.Context) {
 	token := c.Param("token")
 	if token == "" {
@@ -478,6 +576,13 @@ type privacyDeleteReq struct {
 	Reason string `json:"reason"`
 }
 
+// @Summary      删除个人数据
+// @Description  提交删除当前用户数据的请求
+// @Tags         user-privacy
+// @Produce      json
+// @Success      202 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Router       /api/privacy/delete [post]
 func (h *Handler) apiPrivacyDelete(c *gin.Context) {
 	u, err := h.currentUserRecord(c)
 	if err != nil {
@@ -495,7 +600,10 @@ func (h *Handler) apiPrivacyDelete(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "db"})
 		return
 	}
-	c.Status(http.StatusAccepted)
+	c.JSON(http.StatusAccepted, gin.H{
+		"status":  "queued",
+		"message": "删除请求已记录，管理员会在后台处理。如需撤回请联系支持。",
+	})
 }
 
 // --- Additional handlers (clients/admin) will be implemented below ---
@@ -511,6 +619,18 @@ func (h *Handler) ensureClientAccess(c *gin.Context, u *storage.User, clientID s
 	return cl, nil
 }
 
+// @Summary      客户端日志
+// @Description  查询当前登录用户拥有的客户端的授权与令牌日志
+// @Tags         developer-api
+// @Produce      json
+// @Param        client_id path string true "客户端 ID"
+// @Param        level     query string false "日志级别"
+// @Param        q         query string false "关键字过滤"
+// @Param        limit     query int    false "返回数量"
+// @Success      200 {array} map[string]interface{}
+// @Failure      401 {object} map[string]string
+// @Failure      403 {object} map[string]string
+// @Router       /api/my/clients/{client_id}/logs [get]
 func (h *Handler) apiMyClientLogs(c *gin.Context) {
 	user, err := h.currentUserRecord(c)
 	if err != nil {
@@ -566,6 +686,15 @@ func (h *Handler) apiMyClientLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// @Summary      客户端授权用户
+// @Description  列出指定客户端已授权的终端用户
+// @Tags         developer-api
+// @Produce      json
+// @Param        client_id path string true "客户端 ID"
+// @Success      200 {array} map[string]interface{}
+// @Failure      401 {object} map[string]string
+// @Failure      403 {object} map[string]string
+// @Router       /api/my/clients/{client_id}/users [get]
 func (h *Handler) apiMyClientUsers(c *gin.Context) {
 	user, err := h.currentUserRecord(c)
 	if err != nil {
@@ -606,6 +735,17 @@ func (h *Handler) apiMyClientUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// @Summary      解除客户端授权
+// @Description  撤销指定用户对客户端的授权
+// @Tags         developer-api
+// @Produce      json
+// @Param        client_id path string true "客户端 ID"
+// @Param        user_id   path string true "用户 ID"
+// @Success      204 {string} string "No Content"
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Failure      403 {object} map[string]string
+// @Router       /api/my/clients/{client_id}/users/{user_id} [delete]
 func (h *Handler) apiMyClientUserDelete(c *gin.Context) {
 	user, err := h.currentUserRecord(c)
 	if err != nil {
@@ -642,6 +782,16 @@ func (h *Handler) apiMyClientUserDelete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// @Summary      客户端统计
+// @Description  获取客户端最近授权与登录统计信息
+// @Tags         developer-api
+// @Produce      json
+// @Param        client_id path string true "客户端 ID"
+// @Param        period    query string false "统计周期"
+// @Success      200 {object} map[string]interface{}
+// @Failure      401 {object} map[string]string
+// @Failure      403 {object} map[string]string
+// @Router       /api/my/clients/{client_id}/analytics [get]
 func (h *Handler) apiMyClientAnalytics(c *gin.Context) {
 	user, err := h.currentUserRecord(c)
 	if err != nil {
@@ -767,6 +917,13 @@ func (h *Handler) apiMyClientAnalytics(c *gin.Context) {
 	})
 }
 
+// @Summary      管理员仪表盘指标
+// @Description  汇总平台用户、客户端与登录统计
+// @Tags         admin-api
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      401 {object} map[string]string
+// @Router       /api/admin/metrics [get]
 func (h *Handler) apiAdminMetrics(c *gin.Context) {
 	totalUsers, _ := h.userSvc.Count(c.Request.Context())
 	totalClients, _ := h.clientSvc.Count(c.Request.Context())
@@ -953,6 +1110,13 @@ func defaultBranding() brandingSetting {
 	}
 }
 
+// @Summary      管理员设置读取
+// @Description  读取平台的 scope、角色与安全策略配置
+// @Tags         admin-api
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      401 {object} map[string]string
+// @Router       /api/admin/settings [get]
 func (h *Handler) apiAdminSettings(c *gin.Context) {
 	var scopes []scopeSetting
 	if ok, err := h.settingSvc.GetJSON(c.Request.Context(), settingKeyScopes, &scopes); err != nil || !ok {
@@ -967,6 +1131,16 @@ func (h *Handler) apiAdminSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"scopes": scopes, "roles": roles, "policies": policies})
 }
 
+// @Summary      更新 scope 配置
+// @Description  覆盖平台支持的 scope 列表及对应 claim
+// @Tags         admin-api
+// @Accept       json
+// @Produce      json
+// @Param        body body []map[string]interface{} true "Scope 列表"
+// @Success      204 {string} string "No Content"
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Router       /api/admin/scopes [put]
 func (h *Handler) apiAdminUpdateScopes(c *gin.Context) {
 	var req []scopeSetting
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -986,6 +1160,16 @@ func (h *Handler) apiAdminUpdateScopes(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// @Summary      更新角色权限
+// @Description  设置平台角色及其权限列表
+// @Tags         admin-api
+// @Accept       json
+// @Produce      json
+// @Param        body body []map[string]interface{} true "角色列表"
+// @Success      204 {string} string "No Content"
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Router       /api/admin/roles [put]
 func (h *Handler) apiAdminUpdateRoles(c *gin.Context) {
 	var req []roleSetting
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1005,6 +1189,16 @@ func (h *Handler) apiAdminUpdateRoles(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// @Summary      更新安全策略
+// @Description  保存口令复杂度、令牌 TTL、MFA 要求等策略
+// @Tags         admin-api
+// @Accept       json
+// @Produce      json
+// @Param        body body policySetting true "安全策略"
+// @Success      204 {string} string "No Content"
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Router       /api/admin/policies [put]
 func (h *Handler) apiAdminUpdatePolicies(c *gin.Context) {
 	var req policySetting
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1027,12 +1221,29 @@ func (h *Handler) apiAdminUpdatePolicies(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// @Summary      获取品牌配置
+// @Description  读取管理控制台的品牌配色与邮箱模板
+// @Tags         admin-api
+// @Produce      json
+// @Success      200 {object} map[string]interface{}
+// @Failure      401 {object} map[string]string
+// @Router       /api/admin/branding [get]
 func (h *Handler) apiAdminBranding(c *gin.Context) {
 	brand := defaultBranding()
 	_, _ = h.settingSvc.GetJSON(c.Request.Context(), settingKeyBranding, &brand)
 	c.JSON(http.StatusOK, brand)
 }
 
+// @Summary      更新品牌配置
+// @Description  保存控制台主题色、Logo 与邮件模板
+// @Tags         admin-api
+// @Accept       json
+// @Produce      json
+// @Param        body body brandingSetting true "品牌配置"
+// @Success      204 {string} string "No Content"
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Router       /api/admin/branding [put]
 func (h *Handler) apiAdminUpdateBranding(c *gin.Context) {
 	var req brandingSetting
 	if err := c.ShouldBindJSON(&req); err != nil {
